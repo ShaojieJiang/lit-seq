@@ -11,6 +11,7 @@ class HFTransformerDataConfig(TransformerDataConfig):
 
     dataset_name: Optional[str] = None
     dataset_config_name: Optional[str] = None
+    history_delimeter: Optional[str] = None
     train_val_split: Optional[int] = None
     train_file: Optional[str] = None
     test_file: Optional[str] = None

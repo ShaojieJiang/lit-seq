@@ -1,0 +1,6 @@
+# @package dataset
+defaults:
+  - nlp/default
+_target_: lightning_transformers.task.nlp.text_classification.TextClassificationDataModule
+cfg:
+  dataset_name: daily_dialog_num_turns
