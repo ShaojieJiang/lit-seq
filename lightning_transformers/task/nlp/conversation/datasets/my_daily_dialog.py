@@ -20,7 +20,6 @@ from zipfile import ZipFile
 
 import datasets
 
-
 _CITATION = """\
 @InProceedings{li2017dailydialog,
     author = {Li, Yanran and Su, Hui and Shen, Xiaoyu and Li, Wenjie and Cao, Ziqiang and Niu, Shuzi},
@@ -142,7 +141,7 @@ class DailyDialog(datasets.GeneratorBasedBuilder):
         with open(file_path, "r", encoding="utf-8") as f, open(act_path, "r", encoding="utf-8") as act, open(
             emotion_path, "r", encoding="utf-8"
         ) as emotion:
-            for i, (line_f, line_act, line_emotion) in enumerate(zip(f, act, emotion)):
+            for dialog_id, (line_f, line_act, line_emotion) in enumerate(zip(f, act, emotion)):
                 if len(line_f.strip()) == 0:
                     break
                 dialog = line_f.replace(' __eou__\n', '').split(self.__EOU__) # get rid of the last __eou__ before splitting
@@ -155,11 +154,11 @@ class DailyDialog(datasets.GeneratorBasedBuilder):
                     if turn_id == 0:
                         continue # one turn only cannot form a pair
 
-                    yield f"{split}-{i}-{turn_id}", {
+                    yield f"{split}-{dialog_id}-{turn_id}", {
                         "context": self.context_delimeter.join(dialog[:turn_id]),
                         "response": turn,
                         "act": int(turn_act),
                         "emotion": int(turn_emotion),
-                        "dialog_id": i,
+                        "dialog_id": dialog_id,
                         "turn_id": turn_id,
                     }

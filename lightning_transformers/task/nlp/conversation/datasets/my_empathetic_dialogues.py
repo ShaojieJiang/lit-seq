@@ -6,7 +6,6 @@ import os
 
 import datasets
 
-
 _CITATION = """\
 @inproceedings{rashkin2019towards,
   title = {Towards Empathetic Open-domain Conversation Models: a New Benchmark and Dataset},
@@ -104,11 +103,15 @@ class EmpatheticDialogues(datasets.GeneratorBasedBuilder):
 
                 if current_conv_id is not None and conv_id != current_conv_id: # a new conversation
                     assert int(conv_id.split(':')[-1]) > int(current_conv_id.split(':')[-1])
-                    dialogs.append(current_dialog)
+                    if len(current_dialog) > 1: # add last
+                        dialogs.append(current_dialog)
                     current_dialog = []
                     current_conv_id = conv_id
 
                 current_dialog.append(utterance.replace('_comma_', ','))
+            
+            if len(current_dialog) > 1: # add last
+                dialogs.append(current_dialog)
 
             for dialog_id, dialog in enumerate(dialogs):
                 for turn_id, turn in enumerate(dialog):

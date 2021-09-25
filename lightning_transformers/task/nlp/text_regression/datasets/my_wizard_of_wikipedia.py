@@ -1,38 +1,27 @@
 """TODO(blended_skill_talk): Add a description here."""
 
 
+import json
 import os
 
 import datasets
 
-
 # TODO(blended_skill_talk): BibTeX citation
 _CITATION = """\
-@article{zhang2018personalizing,
-  title={Personalizing dialogue agents: I have a dog, do you have pets too?},
-  author={Zhang, Saizheng and Dinan, Emily and Urbanek, Jack and Szlam, Arthur and Kiela, Douwe and Weston, Jason},
-  journal={arXiv preprint arXiv:1801.07243},
-  year={2018}
-}
 """
 
 # TODO(blended_skill_talk):
 _DESCRIPTION = """\
 A dataset of 7k conversations explicitly designed to exhibit multiple conversation modes: displaying personality, having empathy, and demonstrating knowledge.
 """
-_URL = "http://parl.ai/downloads/personachat/personachat.tgz"
+_URL = "http://parl.ai/downloads/wizard_of_wikipedia/wizard_of_wikipedia.tgz"
 
 
-class Personachat(datasets.GeneratorBasedBuilder):
+class WizardOfWikipedia(datasets.GeneratorBasedBuilder):
     """TODO(blended_skill_talk): Short description of my dataset."""
 
     # TODO(blended_skill_talk): Set up version.
     VERSION = datasets.Version("1.0.0")
-    
-    def __init__(self, *args, writer_batch_size=None, **kwargs):
-        self.context_delimeter = kwargs.get('delimeter', ' ')
-        kwargs.pop('delimeter')
-        super().__init__(*args, writer_batch_size=writer_batch_size, **kwargs)
 
     def _info(self):
         # TODO(blended_skill_talk): Specifies the datasets.DatasetInfo object
@@ -42,8 +31,8 @@ class Personachat(datasets.GeneratorBasedBuilder):
             # datasets.features.FeatureConnectors
             features=datasets.Features(
                 {
-                    "context": datasets.Value("string"),
-                    "response": datasets.Value("string"),
+                    "text": datasets.Value("string"),
+                    "label": datasets.Value("float"),
                     "dialog_id": datasets.Value("int32"),
                     "turn_id": datasets.Value("int32"),
                 }
@@ -53,7 +42,7 @@ class Personachat(datasets.GeneratorBasedBuilder):
             # builder.as_dataset.
             supervised_keys=None,
             # Homepage of the dataset for documentation
-            homepage="https://github.com/facebookresearch/ParlAI/tree/main/parlai/tasks/personachat",
+            homepage="",
             citation=_CITATION,
         )
 
@@ -63,22 +52,21 @@ class Personachat(datasets.GeneratorBasedBuilder):
         # dl_manager is a datasets.download.DownloadManager that can be used to
         # download and extract URLs
         data_dir = dl_manager.download_and_extract(_URL)
-        data_dir += '/personachat'
         return [
             datasets.SplitGenerator(
                 name=datasets.Split.TRAIN,
                 # These kwargs will be passed to _generate_examples
-                gen_kwargs={"filepath": os.path.join(data_dir, "train_both_original.txt")},
+                gen_kwargs={"filepath": os.path.join(data_dir, "train.json")},
             ),
             datasets.SplitGenerator(
                 name=datasets.Split.VALIDATION,
                 # These kwargs will be passed to _generate_examples
-                gen_kwargs={"filepath": os.path.join(data_dir, "valid_both_original.txt")},
+                gen_kwargs={"filepath": os.path.join(data_dir, "valid_random_split.json")},
             ),
             datasets.SplitGenerator(
                 name=datasets.Split.TEST,
                 # These kwargs will be passed to _generate_examples
-                gen_kwargs={"filepath": os.path.join(data_dir, "test_both_original.txt")},
+                gen_kwargs={"filepath": os.path.join(data_dir, "test_random_split.json")},
             ),
         ]
 
@@ -86,27 +74,19 @@ class Personachat(datasets.GeneratorBasedBuilder):
         """Yields examples."""
         # TODO(blended_skill_talk): Yields (key, example) tuples from the dataset
         with open(filepath, encoding="utf-8") as f:
-            dialogs = []
-            current_dialog = []
-            for id_, row in enumerate(f):
-                splits = row.split('\t')
-                if len(splits) <= 1: # persona line, skip
-                    if len(current_dialog) >= 2:
-                        dialogs.append(current_dialog)
-                        current_dialog = []
-                    continue
-                context, response = splits[0], splits[1]
-                context = ' '.join(context.split(' ')[1:]) # get rid of the number in the beginning
-                current_dialog.extend([context, response])
+            data = json.load(f)
+            for dialog_id, row in enumerate(data):
+                # personas = [row["personas"][1][0], row["personas"][1][1]]
+                dialog = [turn['text'] for turn in row["dialog"]]
 
-        for id_, dialog in enumerate(dialogs):
-            for turn_id, turn in enumerate(dialog):
-                if turn_id == 0:
-                    continue
+                dialog_len = len(dialog)
+                for turn_id, turn in enumerate(dialog):
+                    label = dialog_len - turn_id - 1
+                    norm10 = label / (dialog_len - 1) * 10
 
-                yield f'{id_}-{turn_id}', {
-                    "context": self.context_delimeter.join(dialog[:turn_id]),
-                    "response": turn,
-                    "dialog_id": id_,
-                    "turn_id": turn_id,
-                }
+                    yield f'{dialog_id}-{turn_id}', {
+                        "text": turn,
+                        "label": norm10,
+                        "dialog_id": dialog_id,
+                        "turn_id": turn_id,
+                    }

@@ -33,20 +33,19 @@ class TextRegressionTransformer(HFTransformer):
         self, *args, downstream_model_type: str = "transformers.AutoModelForSequenceClassification", **kwargs
     ) -> None:
         super().__init__(downstream_model_type, *args, **kwargs)
+        self.criterion = torch.nn.MSELoss()
         # self.metrics = {}
 
     def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
-        outputs = self.model(**batch)
-        loss = outputs[0]
-        self.log("train_loss", loss)
-        return loss
+        return self.common_step("train", batch)
+        # self.log("train_loss", loss)
 
     def common_step(self, prefix: str, batch: Any) -> torch.Tensor:
+        labels = batch.pop('labels') # don't pass labels so that it doesn't calculate loss inside the model
         outputs = self.model(**batch)
-        loss, logits = outputs[:2]
-        # preds = torch.argmax(logits, dim=1)
-        # metric_dict = self.compute_metrics(preds, batch["labels"], mode=prefix)
-        # self.log_dict(metric_dict, prog_bar=True, on_step=False, on_epoch=True)
+        logits = outputs.logits
+        scores_relu10 = logits.clamp(0, 10)
+        loss = self.criterion(scores_relu10, labels)
         self.log(f"{prefix}_loss", loss, prog_bar=True, sync_dist=True)
         return loss
 
@@ -59,16 +58,11 @@ class TextRegressionTransformer(HFTransformer):
     def configure_metrics(self, _) -> None:
         # TODO: add correlation metric?
         pass
-
-    @property
-    def num_classes(self) -> int:
-        return 1
-        # return self.trainer.datamodule.num_classes
-
+    
     # def compute_metrics(self, preds, labels, mode="val") -> Dict[str, torch.Tensor]:
     #     # Not required by all models. Only required for classification
     #     return {f"{mode}_{k}": metric(preds, labels) for k, metric in self.metrics.items()}
 
     @property
     def hf_pipeline_task(self) -> str:
-        return "sentiment-analysis"
+        raise NotImplementedError()

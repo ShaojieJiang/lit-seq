@@ -1,0 +1,6 @@
+# @package dataset
+defaults:
+  - nlp/default
+_target_: lightning_transformers.task.nlp.text_regression.TextRegressionDataModule
+cfg:
+  dataset_name: my_blended_skill_talk

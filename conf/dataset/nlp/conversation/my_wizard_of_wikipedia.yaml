@@ -3,7 +3,7 @@ defaults:
   - nlp/default
 _target_: lightning_transformers.task.nlp.conversation.ConversationDataModule
 cfg:
-  dataset_name: empathetic_dialogues
+  dataset_name: my_wizard_of_wikipedia
   # dataset_config_name: 1.0.0
   max_source_length: 128
   max_target_length: 128
