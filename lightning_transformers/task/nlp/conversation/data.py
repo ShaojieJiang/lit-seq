@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from importlib import import_module
-from typing import Tuple
+from typing import Callable, Optional, Tuple
 
 from datasets import Dataset
+from transformers.data.data_collator import DataCollatorForSeq2Seq
 
 from lightning_transformers.core.nlp.seq2seq import Seq2SeqDataModule
 from lightning_transformers.core.utils import load_dataset_builder, load_my_dataset
@@ -55,3 +56,10 @@ class ConversationDataModule(Seq2SeqDataModule):
     @property
     def source_target_column_names(self) -> Tuple[str, str]:
         return "context", "response"
+    
+    @property
+    def collate_fn(self) -> Optional[Callable]:
+        if self.cfg.padding != 'max_length':
+            return DataCollatorForSeq2Seq(self.tokenizer)
+        else:
+            return super().collate_fn

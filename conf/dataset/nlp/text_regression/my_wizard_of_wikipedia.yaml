@@ -1,6 +1,6 @@
 # @package dataset
 defaults:
-  - nlp/default
+  - /dataset/nlp/text_regression/default
 _target_: lightning_transformers.task.nlp.text_regression.TextRegressionDataModule
 cfg:
   dataset_name: my_wizard_of_wikipedia

@@ -1,4 +1,9 @@
 # @package dataset
 defaults:
-  - nlp/default
+  - /dataset/nlp/default
 _target_: lightning_transformers.task.nlp.conversation.ConversationDataModule
+cfg:
+  max_source_length: 128
+  max_target_length: 128
+  history_delimeter: '  '
+  padding: False

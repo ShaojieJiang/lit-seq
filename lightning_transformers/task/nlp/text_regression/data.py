@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from importlib import import_module
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from datasets import ClassLabel, Dataset
 from datasets.load import load_dataset
 from transformers import PreTrainedTokenizerBase
+from transformers.data.data_collator import DataCollatorWithPadding
 
 from lightning_transformers.core.nlp import HFDataModule
 from lightning_transformers.core.utils import load_my_dataset
@@ -96,3 +97,10 @@ class TextRegressionDataModule(HFDataModule):
                     cache_dir=self.cfg.cache_dir,
                     data_files=data_files,
                 )
+    
+    @property
+    def collate_fn(self) -> Optional[Callable]:
+        if self.cfg.padding != 'max_length':
+            return DataCollatorWithPadding(self.tokenizer)
+        else:
+            return super().collate_fn

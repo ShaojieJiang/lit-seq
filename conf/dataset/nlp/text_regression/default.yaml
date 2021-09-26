@@ -1,4 +1,6 @@
 # @package dataset
 defaults:
-  - nlp/default
+  - /dataset/nlp/default
 _target_: lightning_transformers.task.nlp.text_regression.TextRegressionDataModule
+cfg:
+  padding: False
