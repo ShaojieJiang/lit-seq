@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict
+from typing import Any
 
 import torch
 
@@ -32,6 +32,7 @@ class TextRegressionTransformer(HFTransformer):
     def __init__(
         self, *args, downstream_model_type: str = "transformers.AutoModelForSequenceClassification", **kwargs
     ) -> None:
+        kwargs['num_labels'] = 1 # This is a regression model
         super().__init__(downstream_model_type, *args, **kwargs)
         self.criterion = torch.nn.MSELoss()
         # self.metrics = {}
@@ -59,10 +60,19 @@ class TextRegressionTransformer(HFTransformer):
         # TODO: add correlation metric?
         pass
     
+    def interact(self):
+        self.eval()
+        while True:
+            user_message = input("Your Message: ")
+            output = self.hf_pipeline(user_message)
+            ntl = output[0]['score'] * 10 # (0, 10)
+            
+            print(f'{ntl:.2f} turns left.')
+    
     # def compute_metrics(self, preds, labels, mode="val") -> Dict[str, torch.Tensor]:
     #     # Not required by all models. Only required for classification
     #     return {f"{mode}_{k}": metric(preds, labels) for k, metric in self.metrics.items()}
 
     @property
     def hf_pipeline_task(self) -> str:
-        raise NotImplementedError()
+        return 'text-classification'

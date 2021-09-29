@@ -63,8 +63,6 @@ class ConversationTransformer(Seq2SeqTransformer):
     def interact(self):
         self.eval()
         conv = Conversation()
-        # history = None
-        sep_token = torch.tensor([[228]]).to(self.device)
         while True:
             user_message = input("Your Message: ")
             conv.add_user_input(user_message)
