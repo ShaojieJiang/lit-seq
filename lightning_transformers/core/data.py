@@ -31,6 +31,8 @@ class TransformerDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.cfg.num_workers,
             collate_fn=self.collate_fn,
+            shuffle=True,
+            pin_memory=True,
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -39,6 +41,8 @@ class TransformerDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.cfg.num_workers,
             collate_fn=self.collate_fn,
+            shuffle=False,
+            pin_memory=True,
         )
 
     def test_dataloader(self) -> Optional[DataLoader]:
@@ -48,6 +52,8 @@ class TransformerDataModule(pl.LightningDataModule):
                 batch_size=self.batch_size,
                 num_workers=self.cfg.num_workers,
                 collate_fn=self.collate_fn,
+                shuffle=False,
+                pin_memory=True,
             )
 
     @property
