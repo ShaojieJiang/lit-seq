@@ -11,8 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Any
+
+import torch
 from lightning_transformers.core.nlp.seq2seq import Seq2SeqTransformer
 from lightning_transformers.task.nlp.conversation.config import ConversationConfig
+from transformers import Conversation
 
 # from lightning_transformers.task.nlp.conversation.metric import RougeMetric
 
@@ -50,6 +54,24 @@ class ConversationTransformer(Seq2SeqTransformer):
     #         use_stemmer=self.cfg.use_stemmer,
     #     )
 
+    def hf_predict(self, *args, **kwargs) -> Any:
+        conversation = Conversation(args[0])
+        self.hf_pipeline(conversation)
+
+        return conversation.generated_responses[0]
+    
+    def interact(self):
+        self.eval()
+        conv = Conversation()
+        # history = None
+        sep_token = torch.tensor([[228]]).to(self.device)
+        while True:
+            user_message = input("Your Message: ")
+            conv.add_user_input(user_message)
+            self.hf_pipeline(conv)
+            
+            print("Blenderbot: ", conv.generated_responses[-1])
+
     @property
     def hf_pipeline_task(self) -> str:
-        return "conversation"
+        return "conversational"
