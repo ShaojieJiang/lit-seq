@@ -15,6 +15,7 @@ import time
 
 import torch
 from pytorch_lightning import Callback
+from pytorch_lightning.callbacks.progress import ProgressBar, convert_inf, tqdm
 from pytorch_lightning.utilities import rank_zero_info
 
 
@@ -35,3 +36,34 @@ class CUDACallback(Callback):
 
         rank_zero_info(f"Average Epoch time: {epoch_time:.2f} seconds")
         rank_zero_info(f"Average Peak memory {max_memory:.2f}MiB")
+
+
+class ProgressBarsWithSteps(ProgressBar):
+    """Modify the default progressbar to show total num_steps.
+    """
+    
+    def __init__(self, refresh_rate: int, process_position: int):
+        super().__init__(refresh_rate=refresh_rate, process_position=process_position)
+        self.step_progress_bar = None
+
+    def on_train_start(self, trainer, pl_module):
+        super().on_train_start(trainer, pl_module)
+
+        if trainer.max_steps is not None:
+            max_steps = trainer.max_steps
+        else:
+            max_steps = trainer.max_epochs * trainer.num_training_batches
+        self.step_progress_bar = tqdm(
+            desc='Training step',
+            position=(2*(self.process_position+1)),
+            total=max_steps,
+            initial=trainer.global_step,
+        )
+    
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+        super().on_train_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
+        total_batches = self.total_train_batches + self.total_val_batches
+        total_batches = convert_inf(total_batches)
+        if self._should_update(self.train_batch_idx, total_batches):
+            self.step_progress_bar.n = self.trainer.global_step+1
+            self.step_progress_bar.refresh()
