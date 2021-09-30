@@ -36,24 +36,32 @@ class TextRegressionTransformer(HFTransformer):
         self.criterion = torch.nn.MSELoss()
         # self.metrics = {}
 
-    def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
-        return self.common_step("train", batch)
-        # self.log("train_loss", loss)
-
-    def common_step(self, prefix: str, batch: Any) -> torch.Tensor:
+    def common_step(self, batch: Any) -> torch.Tensor:
         labels = batch.pop('labels') # don't pass labels so that it doesn't calculate loss inside the model
         outputs = self.model(**batch)
         logits = outputs.logits
         scores_relu10 = logits.clamp(0, 10)
         loss = self.criterion(scores_relu10, labels)
-        self.log(f"{prefix}_loss", loss, prog_bar=True, sync_dist=True)
+
+        return loss
+
+    def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
+        loss = self.common_step(batch)
+        self.log("train_loss", loss)
+
         return loss
 
     def validation_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
-        return self.common_step("val", batch)
+        loss = self.common_step(batch)
+        self.log("val_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True)
+
+        return loss
 
     def test_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
-        return self.common_step("test", batch)
+        loss = self.common_step(batch)
+        self.log("test_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True)
+
+        return loss
 
     def configure_metrics(self, _) -> None:
         # TODO: add correlation metric?
