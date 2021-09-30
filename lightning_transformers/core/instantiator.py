@@ -108,6 +108,7 @@ class HydraInstantiator(Instantiator):
             return self.instantiate(cfg.trainer.logger)
 
     def trainer(self, cfg: DictConfig, **kwargs) -> pl.Trainer:
+        cfg.callbacks = list(cfg.callbacks.values())
         return self.instantiate(cfg, **kwargs)
 
     def instantiate(self, *args, **kwargs):

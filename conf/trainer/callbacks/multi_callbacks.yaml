@@ -1,0 +1,3 @@
+defaults:
+  - checkpoint_callback: ../checkpoint_callback
+  - progress_bar: ../progress_bar_with_steps

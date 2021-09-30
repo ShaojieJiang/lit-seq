@@ -1,9 +1,8 @@
 defaults:
-  - logger: tensorboard
-  - callbacks: progress_bar_with_steps
+  - callbacks: multi_callbacks
 _target_: pytorch_lightning.Trainer
-checkpoint_callback: True
-default_root_dir: null
+logger: True
+default_root_dir: ${oc.env:STORAGE}/trained/lit/${backbone.pretrained_model_name_or_path}_${dataset.cfg.dataset_name}
 gradient_clip_val: 0.0
 process_position: 0
 num_nodes: 1

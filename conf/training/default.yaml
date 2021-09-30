@@ -1,6 +1,6 @@
 run_test_after_fit: True
 lr: 5e-5
-output_dir: '.'
+# output_dir: ${trainer.default_root_dir}
 
 # read in dataset
 batch_size: 16
