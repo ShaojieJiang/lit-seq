@@ -43,7 +43,6 @@ class TextRegressionDataModule(HFDataModule):
         #     dataset = dataset.class_encode_column("labels")
 
         dataset.set_format("torch", columns=cols_to_keep)
-        self.labels = dataset["train"].features["labels"]
         return dataset
 
     @property

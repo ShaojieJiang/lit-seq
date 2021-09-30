@@ -32,7 +32,6 @@ class TextRegressionTransformer(HFTransformer):
     def __init__(
         self, *args, downstream_model_type: str = "transformers.AutoModelForSequenceClassification", **kwargs
     ) -> None:
-        kwargs['num_labels'] = 1 # This is a regression model
         super().__init__(downstream_model_type, *args, **kwargs)
         self.criterion = torch.nn.MSELoss()
         # self.metrics = {}
