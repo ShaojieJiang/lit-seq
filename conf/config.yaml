@@ -6,5 +6,5 @@ defaults: # loads default configs
   - trainer: default
 
 experiment_name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
-log: False
+log: True
 ignore_warnings: True # todo: check warnings before release

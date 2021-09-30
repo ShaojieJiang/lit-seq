@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from lightning_transformers.core.callback import ProgressBarsWithSteps
 from typing import Any, Optional
 
 import hydra
@@ -56,9 +55,6 @@ def run(
     trainer = instantiator.trainer(
         trainer,
         logger=logger,
-        callbacks=[
-            ProgressBarsWithSteps(trainer['progress_bar_refresh_rate'], trainer['process_position'])
-        ]
     )
 
     trainer.fit(model, datamodule=data_module)

@@ -1,7 +1,8 @@
+defaults:
+  - logger: tensorboard
+  - callbacks: progress_bar_with_steps
 _target_: pytorch_lightning.Trainer
-logger: tensorboard
 checkpoint_callback: True
-callbacks: null
 default_root_dir: null
 gradient_clip_val: 0.0
 process_position: 0
