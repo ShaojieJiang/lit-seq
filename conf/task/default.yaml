@@ -8,3 +8,5 @@ _recursive_: false
 _target_: lightning_transformers.core.model.TaskTransformer
 optimizer: ${optimizer}
 scheduler: ${scheduler}
+cfg:
+  scheduler_monitor: ${trainer.callbacks.checkpoint_callback.monitor}

@@ -7,7 +7,7 @@ from transformers import pipeline as hf_transformers_pipeline
 from lightning_transformers.core.config import OptimizerConfig, SchedulerConfig
 from lightning_transformers.core.instantiator import Instantiator
 from lightning_transformers.core.model import TaskTransformer
-from lightning_transformers.core.nlp.config import HFBackboneConfig
+from lightning_transformers.core.nlp.config import HFBackboneConfig, HFTaskConfig
 
 if TYPE_CHECKING:
     from transformers import AutoModel, Pipeline
@@ -42,12 +42,13 @@ class HFTransformer(TaskTransformer):
         instantiator: Optional[Instantiator] = None,
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
         pipeline_kwargs: Optional[dict] = None,
+        cfg: Optional[HFTaskConfig] = None,
         **model_data_kwargs,
     ) -> None:
         self.save_hyperparameters()
         model_cls: Type["AutoModel"] = get_class(downstream_model_type)
         model = model_cls.from_pretrained(backbone.pretrained_model_name_or_path, **model_data_kwargs)
-        super().__init__(model=model, optimizer=optimizer, scheduler=scheduler, instantiator=instantiator)
+        super().__init__(model=model, optimizer=optimizer, scheduler=scheduler, instantiator=instantiator, cfg=cfg)
         self._tokenizer = tokenizer  # necessary for hf_pipeline
         self._hf_pipeline = None
         self._hf_pipeline_kwargs = pipeline_kwargs or {}

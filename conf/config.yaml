@@ -1,7 +1,7 @@
 defaults: # loads default configs
   - task: default
   - optimizer: adamw
-  - scheduler: linear_schedule_with_warmup
+  - scheduler: reduce_lr_on_plateau
   - training: default
   - trainer: default
   - hydra: output/custom

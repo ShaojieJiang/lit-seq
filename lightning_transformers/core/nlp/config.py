@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Union
 
-from lightning_transformers.core.config import TaskConfig
 from lightning_transformers.core.data import TransformerDataConfig
 
 
@@ -40,6 +39,5 @@ class HFBackboneConfig:
 
 
 @dataclass
-class HFTaskConfig(TaskConfig):
-    downstream_model_type: Optional[str] = None
-    backbone: HFBackboneConfig = HFBackboneConfig()
+class HFTaskConfig:
+    scheduler_monitor: Optional[str] = "val_loss"
