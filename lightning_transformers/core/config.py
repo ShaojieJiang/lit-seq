@@ -42,3 +42,8 @@ class TrainerConfig:
 class TaskConfig:
     optimizer: OptimizerConfig = OptimizerConfig()
     scheduler: SchedulerConfig = SchedulerConfig()
+
+
+@dataclass
+class LitTaskConfig:
+    scheduler_monitor: Optional[str] = "val_loss"

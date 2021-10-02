@@ -18,9 +18,8 @@ import torch
 import transformers
 from pytorch_lightning.utilities import rank_zero_info, rank_zero_warn
 
-from lightning_transformers.core.config import OptimizerConfig, SchedulerConfig
+from lightning_transformers.core.config import LitTaskConfig, OptimizerConfig, SchedulerConfig
 from lightning_transformers.core.instantiator import Instantiator
-from lightning_transformers.core.nlp.config import HFTaskConfig
 
 
 class LitTransformer(pl.LightningModule):
@@ -109,7 +108,7 @@ class TaskTransformer(LitTransformer):
         optimizer: Optional[OptimizerConfig] = None,
         scheduler: Optional[SchedulerConfig] = None,
         instantiator: Optional[Instantiator] = None,
-        cfg: Optional[HFTaskConfig] = None,
+        cfg: Optional[LitTaskConfig] = None,
     ):
         super().__init__(model)
         self.instantiator = instantiator

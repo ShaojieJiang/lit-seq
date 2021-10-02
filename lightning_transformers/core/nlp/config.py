@@ -36,8 +36,3 @@ class HFTokenizerConfig:
 @dataclass
 class HFBackboneConfig:
     pretrained_model_name_or_path: Optional[str] = None
-
-
-@dataclass
-class HFTaskConfig:
-    scheduler_monitor: Optional[str] = "val_loss"

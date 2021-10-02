@@ -4,10 +4,10 @@ from hydra.utils import get_class
 from transformers import PreTrainedTokenizerBase
 from transformers import pipeline as hf_transformers_pipeline
 
-from lightning_transformers.core.config import OptimizerConfig, SchedulerConfig
+from lightning_transformers.core.config import LitTaskConfig, OptimizerConfig, SchedulerConfig
 from lightning_transformers.core.instantiator import Instantiator
 from lightning_transformers.core.model import TaskTransformer
-from lightning_transformers.core.nlp.config import HFBackboneConfig, HFTaskConfig
+from lightning_transformers.core.nlp.config import HFBackboneConfig
 
 if TYPE_CHECKING:
     from transformers import AutoModel, Pipeline
@@ -42,7 +42,7 @@ class HFTransformer(TaskTransformer):
         instantiator: Optional[Instantiator] = None,
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
         pipeline_kwargs: Optional[dict] = None,
-        cfg: Optional[HFTaskConfig] = None,
+        cfg: Optional[LitTaskConfig] = None,
         **model_data_kwargs,
     ) -> None:
         self.save_hyperparameters()
