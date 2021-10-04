@@ -34,6 +34,8 @@ class FED(datasets.GeneratorBasedBuilder):
                 {
                     "text": datasets.Value("string"),
                     "label": datasets.Value("float"),
+                    "dialog_id": datasets.Value("int32"),
+                    "turn_id": datasets.Value("int32"),
                 }
             ),
             # If there's a common (input, target) tuple from the features,
@@ -74,14 +76,16 @@ class FED(datasets.GeneratorBasedBuilder):
         # TODO(fed): Yields (key, example) tuples from the dataset
         with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
-            for anno_id, row in enumerate(data):
+            for dialog_id, row in enumerate(data):
                 if 'response' in row: # we only want turn-level annotations
-                    text = row['response']
+                    text = row['response'].replace('System: ', '')
                     engaging = row['annotations']['Engaging']
                     avg_engaging = np.mean(engaging)
                     norm10 = avg_engaging * 5
 
-                    yield f'{anno_id}', {
+                    yield f'{dialog_id}', {
                         "text": text,
                         "label": norm10,
+                        "dialog_id": dialog_id,
+                        "turn_id": 0,
                     }

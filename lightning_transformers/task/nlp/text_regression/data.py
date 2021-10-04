@@ -37,7 +37,7 @@ class TextRegressionDataModule(HFDataModule):
             max_length=self.cfg.max_length,
         )
         cols_to_keep = [
-            x for x in ["input_ids", "attention_mask", "token_type_ids", "labels"] if x in dataset["train"].features
+            x for x in ["input_ids", "attention_mask", "token_type_ids", "labels", "dialog_id", "turn_id"] if x in dataset["train"].features
         ]
         # if not isinstance(dataset["train"].features["labels"], ClassLabel):
         #     dataset = dataset.class_encode_column("labels")

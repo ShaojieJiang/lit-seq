@@ -22,7 +22,7 @@ from lightning_transformers.core import TaskTransformer, TransformerDataModule
 from lightning_transformers.core.config import TaskConfig, TrainerConfig, TransformerDataConfig
 from lightning_transformers.core.instantiator import HydraInstantiator, Instantiator
 from lightning_transformers.core.nlp.config import HFTokenizerConfig
-from lightning_transformers.core.utils import set_ignore_warnings
+from lightning_transformers.core.utils import set_ignore_warnings, validate_resume_path
 
 
 def run(
@@ -64,6 +64,7 @@ def run(
 
 
 def main(cfg: DictConfig) -> None:
+    validate_resume_path(cfg)
     rank_zero_info(OmegaConf.to_yaml(cfg))
     instantiator = HydraInstantiator()
     logger = instantiator.logger(cfg)

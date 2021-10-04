@@ -31,6 +31,7 @@ from datasets.utils.download_manager import GenerateMode
 from datasets.utils.file_utils import DownloadConfig
 from datasets.utils.info_utils import is_small_dataset
 from datasets.utils.version import Version
+from omegaconf.dictconfig import DictConfig
 
 
 def set_ignore_warnings():
@@ -173,3 +174,10 @@ def load_my_dataset(
         builder_instance._save_infos()
 
     return ds
+
+
+def validate_resume_path(cfg: DictConfig):
+    if not os.path.isfile(cfg.trainer.resume_from_checkpoint):
+        cfg.trainer.resume_from_checkpoint = None
+        
+    return cfg

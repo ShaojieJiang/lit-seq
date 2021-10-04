@@ -20,6 +20,7 @@ trainer:
   max_steps: 50000
   max_epochs: null
   gradient_clip_val: 0.1
+  resume_from_checkpoint: ${trainer.default_root_dir}/last.ckpt
 
 training:
   lr: 0.05

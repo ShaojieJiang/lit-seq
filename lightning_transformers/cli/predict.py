@@ -21,6 +21,7 @@ from pytorch_lightning.utilities.distributed import rank_zero_info
 from lightning_transformers.core.config import TaskConfig
 from lightning_transformers.core.instantiator import HydraInstantiator, Instantiator
 from lightning_transformers.core.nlp import HFTokenizerConfig, HFTransformer
+from lightning_transformers.core.utils import validate_resume_path
 
 
 def run(
@@ -49,6 +50,7 @@ def run(
 
 
 def main(cfg: DictConfig) -> Any:
+    validate_resume_path(cfg)
     rank_zero_info(OmegaConf.to_yaml(cfg))
     instantiator = HydraInstantiator()
     y = run(
