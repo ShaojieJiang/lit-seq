@@ -4,7 +4,8 @@ defaults:
 _target_: lightning_transformers.core.nlp.HFDataModule
 cfg:
   dataset_name: null
-  dataset_config_name: null
+  dataset_config_name: null # only used to name the cache directory?
+  pretrained_dataset_name: ${dataset.cfg.dataset_name}
   train_file: null
   validation_file: null
   test_file: null
