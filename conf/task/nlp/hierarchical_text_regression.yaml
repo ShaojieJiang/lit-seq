@@ -1,0 +1,8 @@
+# @package task
+defaults:
+  - nlp/default
+  - override /dataset@_group_: nlp/hierarchical_text_regression/default
+_target_: lightning_transformers.task.nlp.hierarchical_text_regression.HierarchicalTextRegressionTransformer
+downstream_model_type: transformers.AutoModelForSequenceClassification
+cfg:
+  task_name: hierarchical_text_regression

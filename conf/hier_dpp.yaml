@@ -1,0 +1,31 @@
+defaults: # loads default configs
+  - task: nlp/hierarchical_text_regression 
+  - optimizer: sgd
+  - scheduler: reduce_lr_on_plateau
+  - training: default
+  - trainer: default
+  - hydra: output/custom
+  - override dataset: nlp/hierarchical_text_regression/my_daily_dialog
+
+experiment_name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+log: True
+ignore_warnings: True # todo: check warnings before release
+
+backbone:
+  pretrained_model_name_or_path: bert-base-uncased
+
+trainer:
+  gpus: 1
+  val_check_interval: 1000
+  max_steps: 50000
+  max_epochs: null
+  gradient_clip_val: 0.1
+  resume_from_checkpoint: ${trainer.default_root_dir}/last.ckpt
+
+training:
+  lr: 0.05
+  batch_size: 10
+
+optimizer:
+  momentum: 0
+  weight_decay: 0
