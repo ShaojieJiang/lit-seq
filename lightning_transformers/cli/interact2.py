@@ -62,7 +62,7 @@ def run(
     trainer.fit(model, datamodule=data_module) # this is a dummy fit, but used to load trained models
 
     best_model_path = trainer.checkpoint_callback.best_model_path
-    model.load_from_checkpoint(best_model_path)
+    model.load_from_checkpoint(best_model_path).cuda()
     model.interact()
 
 
