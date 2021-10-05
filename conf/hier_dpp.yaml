@@ -16,11 +16,12 @@ backbone:
 
 trainer:
   gpus: 1
-  val_check_interval: 1000
+  val_check_interval: 2000
   max_steps: 50000
   max_epochs: null
   gradient_clip_val: 0.1
   resume_from_checkpoint: ${trainer.default_root_dir}/last.ckpt
+  accumulate_grad_batches: 2
 
 training:
   lr: 0.05

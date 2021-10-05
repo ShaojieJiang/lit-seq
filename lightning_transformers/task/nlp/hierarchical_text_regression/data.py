@@ -161,7 +161,7 @@ class DataCollatorWithTurnAndDialogPadding(DataCollatorWithPadding):
     
     def pad_dialogues(self, batch_dialogues, max_turns):
         keys = ['attention_mask', 'input_ids', 'token_type_ids']
-        dummy_turn = {'input_ids': torch.LongTensor([0]), 'attention_mask': torch.LongTensor([0]), 'token_type_ids': torch.LongTensor([0])}
+        dummy_turn = {'input_ids': torch.LongTensor([101, 102]), 'attention_mask': torch.LongTensor([1, 1]), 'token_type_ids': torch.LongTensor([0, 0])}
         for dialogue in batch_dialogues:
             if len(dialogue[keys[0]]) < max_turns: # needs to be padded
                 pad_len = max_turns - len(dialogue[keys[0]])
