@@ -14,9 +14,10 @@
 from importlib import import_module
 from typing import Any, Callable, Dict, List, Optional
 
+import torch
 from datasets import ClassLabel, Dataset
 from datasets.load import load_dataset
-import torch
+from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerBase
 from transformers.data.data_collator import DataCollatorWithPadding
 
@@ -29,6 +30,7 @@ class HierarchicalTextRegressionDataModule(HFDataModule):
 
     def process_data(self, dataset: Dataset, stage: Optional[str] = None) -> Dataset:
         input_feature_fields = [k for k, v in dataset["train"].features.items() if k not in ["label", "idx"]]
+        dataset = dataset.sort('sort_key', reverse=True) # should CUDA OOM exist, this allows it to appear earlier
         dataset = HierarchicalTextRegressionDataModule.preprocess(
             dataset,
             tokenizer=self.tokenizer,
@@ -107,6 +109,7 @@ class HierarchicalTextRegressionDataModule(HFDataModule):
                     name=self.cfg.dataset_config_name,
                     cache_dir=self.cfg.cache_dir,
                     data_files=data_files,
+                    history_size=self.cfg.history_size,
                 )
             except: # not a customised dataset
                 return load_dataset(

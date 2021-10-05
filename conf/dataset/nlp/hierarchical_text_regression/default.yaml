@@ -4,3 +4,4 @@ defaults:
 _target_: lightning_transformers.task.nlp.hierarchical_text_regression.HierarchicalTextRegressionDataModule
 cfg:
   padding: False
+  history_size: 5

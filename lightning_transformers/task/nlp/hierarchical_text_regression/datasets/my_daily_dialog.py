@@ -64,6 +64,10 @@ class DailyDialog(datasets.GeneratorBasedBuilder):
     VERSION = datasets.Version("1.0.0")
 
     __EOU__ = " __eou__ " # get rid of white spaces between turns
+    
+    def __init__(self, *args, writer_batch_size=None, **kwargs):
+        self.history_size = kwargs.pop('history_size')
+        super().__init__(*args, writer_batch_size=writer_batch_size, **kwargs)
 
     def _info(self):
         return datasets.DatasetInfo(
@@ -76,6 +80,7 @@ class DailyDialog(datasets.GeneratorBasedBuilder):
                     "emotion": datasets.ClassLabel(names=list(emotion_label.values())),
                     "dialog_id": datasets.Value("int32"),
                     "turn_id": datasets.Value("int32"),
+                    "sort_key": datasets.Value("int32"),
                 }
             ),
             supervised_keys=None,
@@ -149,12 +154,18 @@ class DailyDialog(datasets.GeneratorBasedBuilder):
                 for turn_id, (turn, turn_act, turn_emotion) in enumerate(zip(dialog, act, emotion)):
                     label = dialog_len - turn_id - 1
                     norm10 = label / (dialog_len - 1) * 10
+                    history = dialog[:turn_id + 1]
+                    if self.history_size > 0:
+                        history_to_keep = history[-self.history_size:]
+                    else:
+                        history_to_keep = history
 
                     yield f'{dialog_id}-{turn_id}', {
-                        "texts": dialog[:turn_id + 1],
+                        "texts": history_to_keep,
                         "label": norm10,
                         "dialog_id": dialog_id,
                         "turn_id": turn_id,
                         "act": int(turn_act),
                         "emotion": int(turn_emotion),
+                        "sort_key": len(history_to_keep), # num_history_turns
                     }
