@@ -1,0 +1,6 @@
+# @package dataset
+defaults:
+  - /dataset/nlp/hierarchical_text_regression/default
+_target_: lightning_transformers.task.nlp.hierarchical_text_regression.HierarchicalTextRegressionDataModule
+cfg:
+  dataset_name: fed
