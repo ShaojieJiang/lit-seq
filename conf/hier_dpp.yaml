@@ -22,7 +22,7 @@ trainer:
   gradient_clip_val: 0.1
   resume_from_checkpoint: ${trainer.default_root_dir}/last.ckpt
   accumulate_grad_batches: 1
-  replace_sampler_ddp: False
+  replace_sampler_ddp: True
 
 training:
   lr: 0.05
