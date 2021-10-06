@@ -115,11 +115,20 @@ class HierarchicalTextRegressionTransformer(TaskTransformer):
     def test_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         loss, scores = self.common_step(batch, return_scores=True)
         self.log("test_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True)
+        texts = [[] for _ in range(len(batch['labels']))]
+        for turn_batch in batch['turn_batches']:
+            turn_texts = self.tokenizer.batch_decode(turn_batch['input_ids'], skip_special_tokens=True)
+            for i, text in enumerate(turn_texts):
+                if text != '': # padding turns are decoded to empty strings, skip them
+                    texts[i].append(text)
+        
+        # only the last turn was labeled, so we're only intersted in this
+        texts = [text_list[-1] for text_list in texts]
 
         return {
             'loss': loss,
             'scores': scores.cpu().tolist(),
-            'text': "Dummy text.", # self.tokenizer.batch_decode([turn[input_ids] for], skip_special_tokens=True),
+            'text': texts,
             'labels': batch['labels'].cpu().tolist(),
             'dialog_id': batch['dialog_id'].cpu().tolist(),
             'turn_id': batch['turn_id'].cpu().tolist(),
