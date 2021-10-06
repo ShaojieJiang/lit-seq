@@ -12,37 +12,86 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections import defaultdict
-from typing import Any, List
+from typing import Any, Dict, List, Optional, Type
 
 import torch
+from hydra.utils import get_class
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from scipy.stats import pearsonr
+from transformers import pipeline as hf_transformers_pipeline
+from transformers.pipelines.base import Pipeline
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+from transformers import AutoModel, BertModel
 
-from lightning_transformers.core.nlp import HFTransformer
+from lightning_transformers.core.config import LitTaskConfig, OptimizerConfig, SchedulerConfig
+from lightning_transformers.core.instantiator import Instantiator
+from lightning_transformers.core.model import TaskTransformer
+from lightning_transformers.core.nlp.config import HFBackboneConfig
+from lightning_transformers.core.nlp.model import HFTransformer
 
 
-class TextRegressionTransformer(HFTransformer):
-    """Defines ``LightningModule`` for the Text Regression Task. This is a modification
-    of the Text Classification Task.
+class HierarchicalBert(torch.nn.Module):
+    def __init__(self, downstream_model_type: str, backbone: HFBackboneConfig, **model_data_kwargs):
+        super().__init__()
+        model_cls: Type["AutoModel"] = get_class(downstream_model_type)
+        self.turn_encoder = BertModel.from_pretrained(backbone.pretrained_model_name_or_path)
+        self.hier_encoder = model_cls.from_pretrained(backbone.pretrained_model_name_or_path, **model_data_kwargs)
 
-    Args:
-        *args: :class:`lightning_transformers.core.nlp.HFTransformer` arguments.
-        downstream_model_type: Downstream HuggingFace AutoModel to load.
-            (default ``transformers.AutoModelForSequenceClassification``)
-        **kwargs: :class:`lightning_transformers.core.nlp.HFTransformer` arguments.
-    """
+    def forward(self, turn_batches, **kwargs):
+        turn_outputs = []
+        for turn_batch in turn_batches:
+            turn_output = self.turn_encoder(**turn_batch)['pooler_output'].unsqueeze(1)
+            turn_outputs.append(turn_output)
+
+        hier_input = torch.cat(turn_outputs, dim=1)
+        output = self.hier_encoder(inputs_embeds=hier_input)
+
+        return output
+
+
+class HierarchicalTextRegressionTransformer(TaskTransformer):
 
     def __init__(
-        self, *args, downstream_model_type: str = "transformers.AutoModelForSequenceClassification", **kwargs
+        self,
+        downstream_model_type: str,
+        backbone: HFBackboneConfig,
+        optimizer: OptimizerConfig = OptimizerConfig(),
+        scheduler: SchedulerConfig = SchedulerConfig(),
+        instantiator: Optional[Instantiator] = None,
+        tokenizer: Optional[PreTrainedTokenizerBase] = None,
+        pipeline_kwargs: Optional[dict] = None,
+        cfg: Optional[LitTaskConfig] = None,
+        **model_data_kwargs,
     ) -> None:
-        super().__init__(downstream_model_type, *args, **kwargs)
+        self.save_hyperparameters()
+        model = HierarchicalBert(downstream_model_type, backbone, **model_data_kwargs)
+        super().__init__(model=model, optimizer=optimizer, scheduler=scheduler, instantiator=instantiator, cfg=cfg)
+        self._tokenizer = tokenizer  # necessary for hf_pipeline
+        self._hf_pipeline = None
+        self._hf_pipeline_kwargs = pipeline_kwargs or {}
         self.criterion = torch.nn.MSELoss()
-        # self.metrics = {}
+
+    @property
+    def tokenizer(self) -> Optional["PreTrainedTokenizerBase"]:
+        if (
+            self._tokenizer is None
+            and hasattr(self, "trainer")  # noqa: W503
+            and hasattr(self.trainer, "datamodule")  # noqa: W503
+            and hasattr(self.trainer.datamodule, "tokenizer")  # noqa: W503
+        ):
+            self._tokenizer = self.trainer.datamodule.tokenizer
+        return self._tokenizer
+
+    @tokenizer.setter
+    def tokenizer(self, tokenizer: "PreTrainedTokenizerBase") -> None:
+        self._tokenizer = tokenizer
+
+    def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        if "tokenizer" in checkpoint:
+            self.tokenizer = checkpoint["tokenizer"]
 
     def common_step(self, batch: Any, return_scores=False) -> torch.Tensor:
-        input_keys = set(batch.keys()) - {'dialog_id', 'turn_id', 'labels'}
-        inputs = {key: batch[key] for key in input_keys}
-        outputs = self.model(**inputs)
+        outputs = self.model(**batch)
         logits = outputs.logits.squeeze(-1)
         scores_relu10 = logits.clamp(0, 10)
         loss = self.criterion(scores_relu10, batch['labels'])
@@ -70,7 +119,7 @@ class TextRegressionTransformer(HFTransformer):
         return {
             'loss': loss,
             'scores': scores.cpu().tolist(),
-            'text': self.tokenizer.batch_decode(batch['input_ids'], skip_special_tokens=True),
+            'text': "Dummy text.", # self.tokenizer.batch_decode([turn[input_ids] for], skip_special_tokens=True),
             'labels': batch['labels'].cpu().tolist(),
             'dialog_id': batch['dialog_id'].cpu().tolist(),
             'turn_id': batch['turn_id'].cpu().tolist(),
@@ -140,24 +189,16 @@ class TextRegressionTransformer(HFTransformer):
         elif type(n) is list:
             for N in n:
                 self.calc_pearsonr_first_last_n(ordered_dialogs, n=N)
-
-    def configure_metrics(self, _) -> None:
-        # TODO: add correlation metric?
-        pass
     
+    @torch.no_grad()
     def interact(self):
         self.eval()
         while True:
             user_message = input("Your Message: ")
-            output = self.hf_pipeline(user_message)
-            ntl = output[0]['score'] * 10 # (0, 10)
+            sentences = user_message.split('[SEP]')
+            tokenized = [self.tokenizer(sent, return_tensors='pt').to(self.device) for sent in sentences]
+            model_input = {'turn_batches': tokenized}
+            output = self.model(**model_input)
+            ntl = output.logits.clamp(0, 10).cpu().item()
             
             print(f'{ntl:.2f} turns left.')
-    
-    # def compute_metrics(self, preds, labels, mode="val") -> Dict[str, torch.Tensor]:
-    #     # Not required by all models. Only required for classification
-    #     return {f"{mode}_{k}": metric(preds, labels) for k, metric in self.metrics.items()}
-
-    @property
-    def hf_pipeline_task(self) -> str:
-        return 'text-classification'

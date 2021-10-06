@@ -10,7 +10,6 @@ class HFTransformerDataConfig(TransformerDataConfig):
 
     dataset_name: Optional[str] = None
     dataset_config_name: Optional[str] = None
-    history_delimeter: Optional[str] = None
     train_val_split: Optional[int] = None
     train_file: Optional[str] = None
     test_file: Optional[str] = None
@@ -24,6 +23,8 @@ class HFTransformerDataConfig(TransformerDataConfig):
     limit_train_samples: Optional[int] = None
     limit_val_samples: Optional[int] = None
     limit_test_samples: Optional[int] = None
+    history_delimeter: Optional[str] = None
+    history_size: Optional[int] = -1
 
 
 @dataclass
