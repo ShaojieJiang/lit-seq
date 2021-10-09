@@ -37,13 +37,19 @@ class TextRegressionTransformer(HFTransformer):
     ) -> None:
         super().__init__(downstream_model_type, *args, **kwargs)
         self.criterion = torch.nn.MSELoss()
+        self.linear = torch.nn.Linear(self.model.config.hidden_size, 1)
         # self.metrics = {}
 
     def common_step(self, batch: Any, return_scores=False) -> torch.Tensor:
         input_keys = set(batch.keys()) - {'dialog_id', 'turn_id', 'labels'}
         inputs = {key: batch[key] for key in input_keys}
         outputs = self.model(**inputs)
-        logits = outputs.logits.squeeze(-1)
+        # apply attention mask
+        masked = outputs.last_hidden_state * inputs['attention_mask'].unsqueeze(-1) # bsz * seq_len * hidden_sz
+        # pooling: mean/max/min
+        pooled = masked.mean(dim=1)
+        logits = self.linear(pooled).squeeze(-1)
+        # logits = outputs.logits.squeeze(-1)
         scores_relu10 = logits.clamp(0, 10)
         loss = self.criterion(scores_relu10, batch['labels'])
         if return_scores:
