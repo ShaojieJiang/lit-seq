@@ -14,6 +14,16 @@ ignore_warnings: True # todo: check warnings before release
 backbone:
   pretrained_model_name_or_path: bert-base-uncased
 
+dataset:
+  cfg:
+    history_delimeter: ' [SEP] '
+    history_size: 1
+
+task:
+  cfg:
+    pooling_method: cls
+    task_name: text_regression_${task.cfg.pooling_method}_pooling
+
 trainer:
   gpus: 1
   val_check_interval: 1000

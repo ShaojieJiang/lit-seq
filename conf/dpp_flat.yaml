@@ -1,0 +1,13 @@
+defaults: # loads default configs
+  - dpp
+
+dataset:
+  cfg:
+    history_delimeter: ' [SEP] '
+    history_size: -1
+
+task:
+  downstream_model_type: transformers.BertModel
+  cfg:
+    task_name: text_regression_flat_history_${task.cfg.pooling_method}_pooling
+    pooling_method: mean

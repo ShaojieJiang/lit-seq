@@ -38,24 +38,27 @@ class TextRegressionTransformer(HFTransformer):
     ) -> None:
         super().__init__(downstream_model_type, *args, **kwargs)
         self.criterion = torch.nn.MSELoss()
-        self.linear = torch.nn.Linear(self.model.config.hidden_size, 1)
+        if self.cfg.pooling_method != 'cls':
+            self.linear = torch.nn.Linear(self.model.config.hidden_size, 1)
         # self.metrics = {}
 
     def common_step(self, batch: Any, return_scores=False) -> torch.Tensor:
         input_keys = set(batch.keys()) - {'dialog_id', 'turn_id', 'labels'}
         inputs = {key: batch[key] for key in input_keys}
         outputs = self.model(**inputs)
-        # apply attention mask
-        masked = outputs.last_hidden_state * inputs['attention_mask'].unsqueeze(-1) # bsz * seq_len * hidden_sz
-        # pooling: mean/max/min
-        if self.cfg.pooling_method == 'mean':
-            pooled = masked.mean(dim=1)
-        elif self.cfg.pooling_method == 'max':
-            pooled = masked.max(dim=1)[0]
-        elif self.cfg.pooling_method == 'min':
-            pooled = masked.min(dim=1)[0]
-        logits = self.linear(pooled).squeeze(-1)
-        # logits = outputs.logits.squeeze(-1)
+        # pooling: mean/max/min/cls
+        if self.cfg.pooling_method == 'cls':
+            logits = outputs.logits.squeeze(-1)
+        else:
+            # apply attention mask
+            masked = outputs.last_hidden_state * inputs['attention_mask'].unsqueeze(-1) # bsz * seq_len * hidden_sz
+            if self.cfg.pooling_method == 'mean':
+                pooled = masked.mean(dim=1)
+            elif self.cfg.pooling_method == 'max':
+                pooled = masked.max(dim=1)[0]
+            elif self.cfg.pooling_method == 'min':
+                pooled = masked.min(dim=1)[0]
+            logits = self.linear(pooled).squeeze(-1)
         scores_relu10 = logits.clamp(0, 10)
         # Avg baseline
         # scores_relu10 = (7.84 - batch['turn_id']).clamp(min=0.0) / 0.784

@@ -3,6 +3,6 @@ defaults:
   - nlp/default
   - override /dataset@_group_: nlp/text_regression/default
 _target_: lightning_transformers.task.nlp.text_regression.TextRegressionTransformer
-downstream_model_type: transformers.BertModel
+downstream_model_type: transformers.AutoModelForSequenceClassification
 cfg:
-  task_name: text_regression_pooling
+  task_name: text_regression
