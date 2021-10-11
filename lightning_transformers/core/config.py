@@ -48,3 +48,4 @@ class TaskConfig:
 class LitTaskConfig:
     scheduler_monitor: Optional[str] = "val_loss"
     task_name: Optional[str] = 'nlp'
+    pooling_method: Optional[str] = 'mean'

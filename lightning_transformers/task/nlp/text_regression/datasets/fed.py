@@ -23,6 +23,11 @@ class FED(datasets.GeneratorBasedBuilder):
 
     # TODO(fed): Set up version.
     VERSION = datasets.Version("1.0.0")
+    
+    def __init__(self, *args, writer_batch_size=None, **kwargs):
+        self.history_delimeter = kwargs.pop('history_delimeter')
+        self.history_size = kwargs.pop('history_size')
+        super().__init__(*args, writer_batch_size=writer_batch_size, **kwargs)
 
     def _info(self):
         # TODO(fed): Specifies the datasets.DatasetInfo object
@@ -78,13 +83,20 @@ class FED(datasets.GeneratorBasedBuilder):
             data = json.load(f)
             for dialog_id, row in enumerate(data):
                 if 'response' in row: # we only want turn-level annotations
-                    text = row['response'].replace('System: ', '')
+                    history_text = row['context'] + '\n' + row['response']
+                    history_text = history_text.replace('System: ', '').replace('User: ', '')
                     engaging = row['annotations']['Engaging']
                     avg_engaging = np.mean(engaging)
                     norm10 = avg_engaging * 5
 
+                    history = history_text.split('\n')
+                    if self.history_size > 0:
+                        history_to_keep = history[-self.history_size:]
+                    else:
+                        history_to_keep = history
+
                     yield f'{dialog_id}', {
-                        "text": text,
+                        "text": self.history_delimeter.join(history_to_keep),
                         "label": norm10,
                         "dialog_id": dialog_id,
                         "turn_id": 0,

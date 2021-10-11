@@ -48,7 +48,12 @@ class TextRegressionTransformer(HFTransformer):
         # apply attention mask
         masked = outputs.last_hidden_state * inputs['attention_mask'].unsqueeze(-1) # bsz * seq_len * hidden_sz
         # pooling: mean/max/min
-        pooled = masked.mean(dim=1)
+        if self.cfg.pooling_method == 'mean':
+            pooled = masked.mean(dim=1)
+        elif self.cfg.pooling_method == 'max':
+            pooled = masked.max(dim=1)[0]
+        elif self.cfg.pooling_method == 'min':
+            pooled = masked.min(dim=1)[0]
         logits = self.linear(pooled).squeeze(-1)
         # logits = outputs.logits.squeeze(-1)
         scores_relu10 = logits.clamp(0, 10)
