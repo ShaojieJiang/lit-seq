@@ -13,6 +13,7 @@
 # limitations under the License.
 from collections import defaultdict
 from typing import Any, List
+from scipy.stats.stats import spearmanr
 
 import torch
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
@@ -51,6 +52,8 @@ class TextRegressionTransformer(HFTransformer):
         logits = self.linear(pooled).squeeze(-1)
         # logits = outputs.logits.squeeze(-1)
         scores_relu10 = logits.clamp(0, 10)
+        # Avg baseline
+        # scores_relu10 = (7.84 - batch['turn_id']).clamp(min=0.0) / 0.784
         loss = self.criterion(scores_relu10, batch['labels'])
         if return_scores:
             return loss, scores_relu10
@@ -97,9 +100,9 @@ class TextRegressionTransformer(HFTransformer):
             dialog = sorted(dialog, key=lambda x: int(x[-1]))
             ordered_dialogs.append(dialog)
 
+        self.calc_correlations_first_last_n(ordered_dialogs)
+        self.calc_correlations_first_last_n(ordered_dialogs, n=[3, 2, 1])
         self.get_greetings_farewells(ordered_dialogs)
-        self.calc_pearsonr_first_last_n(ordered_dialogs)
-        self.calc_pearsonr_first_last_n(ordered_dialogs, n=[3, 2, 1])
 
     def get_greetings_farewells(self, ordered_dialogs):
         GREETING_THRESH = 8.5
@@ -128,24 +131,26 @@ class TextRegressionTransformer(HFTransformer):
         fp.write('\n')
         # fp.write('============\n\n')
 
-    def calc_pearsonr(self, ordered_dialogs):
+    def calc_correlations(self, ordered_dialogs):
         all_labels_scores = [[(turn[2], turn[1]) for turn in dialog] for dialog in ordered_dialogs]
 
         flatten_scores = [turn for dialog in all_labels_scores for turn in dialog]
         scores, labels = zip(*flatten_scores)
-        return pearsonr(scores, labels)
+        return pearsonr(scores, labels), spearmanr(scores, labels)
     
-    def calc_pearsonr_first_last_n(self, ordered_dialogs, n=None):
+    def calc_correlations_first_last_n(self, ordered_dialogs, n=None):
         if n is None:
-            res = self.calc_pearsonr(ordered_dialogs)
-            print(f'Overall: {res[0]:.2f}, pval: {res[1]}')
+            pearson, spearman = self.calc_correlations(ordered_dialogs)
+            print(f'Overall Pearson: {pearson[0]:.2f}, pval: {pearson[1]}')
+            print(f'Overall Spearman: {spearman[0]:.2f}, pval: {spearman[1]}')
         elif type(n) is int:
             removed_intermediate = [dialog[:n] + dialog[-n:] if len(dialog) > 2*n else dialog for dialog in ordered_dialogs]
-            res = self.calc_pearsonr(removed_intermediate)
-            print(f'First/Last {n}: {res[0]:.2f}, pval: {res[1]}')
+            pearson, spearman = self.calc_correlations(removed_intermediate)
+            print(f'First/Last {n} P: {pearson[0]:.2f}, pval: {pearson[1]}')
+            print(f'First/Last {n} S: {spearman[0]:.2f}, pval: {spearman[1]}')
         elif type(n) is list:
             for N in n:
-                self.calc_pearsonr_first_last_n(ordered_dialogs, n=N)
+                self.calc_correlations_first_last_n(ordered_dialogs, n=N)
 
     def configure_metrics(self, _) -> None:
         # TODO: add correlation metric?
