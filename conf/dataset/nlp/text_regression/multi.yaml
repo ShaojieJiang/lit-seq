@@ -1,0 +1,6 @@
+# @package dataset
+defaults:
+  - /dataset/nlp/text_regression/default
+_target_: lightning_transformers.task.nlp.text_regression.multi_data.TextRegressionDataModule
+cfg:
+  dataset_name: multi

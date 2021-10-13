@@ -1,0 +1,9 @@
+defaults: # loads default configs
+  - dpp
+  - override dataset: nlp/text_regression/multi
+
+training:
+  run_test_after_fit: False
+
+trainer:
+  limit_val_batches: 0.25

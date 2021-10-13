@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import random
 from collections import defaultdict
 from typing import Any, List
-from scipy.stats.stats import spearmanr
 
 import torch
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from scipy.stats import pearsonr
+from scipy.stats.stats import spearmanr
 
 from lightning_transformers.core.nlp import HFTransformer
 
@@ -69,6 +70,9 @@ class TextRegressionTransformer(HFTransformer):
         return loss
 
     def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
+        if type(batch) == list: # multi-tasking
+            choice = random.randrange(0, len(batch))
+            batch = batch[choice]
         loss = self.common_step(batch)
         self.log("train_loss", loss)
 
@@ -76,7 +80,7 @@ class TextRegressionTransformer(HFTransformer):
 
     def validation_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         loss = self.common_step(batch)
-        self.log("val_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True)
+        self.log("val_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True, add_dataloader_idx=False)
 
         return loss
 
