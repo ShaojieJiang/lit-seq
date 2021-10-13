@@ -99,5 +99,5 @@ class FED(datasets.GeneratorBasedBuilder):
                         "text": self.history_delimeter.join(history_to_keep),
                         "label": norm10,
                         "dialog_id": dialog_id,
-                        "turn_id": 0,
+                        "turn_id": len(history) - 1,
                     }
