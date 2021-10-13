@@ -90,6 +90,7 @@ class TextRegressionDataModule(HFDataModule):
                     data_files=data_files,
                     history_delimeter=self.cfg.history_delimeter,
                     history_size=self.cfg.history_size,
+                    script_version=f'histsz_{self.cfg.history_size}',
                 )
             except: # not a customised dataset
                 return load_dataset(
