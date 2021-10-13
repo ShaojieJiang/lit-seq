@@ -23,7 +23,7 @@ from datasets.features import Features
 from datasets.iterable_dataset import IterableDataset
 from datasets.load import prepare_module
 from datasets.metric import Metric
-from datasets.packaged_modules import _PACKAGED_DATASETS_MODULES
+from datasets.packaged_modules import _PACKAGED_DATASETS_MODULES, hash_python_lines
 from datasets.splits import Split
 from datasets.streaming import extend_module_for_streaming
 from datasets.tasks.base import TaskTemplate
@@ -83,6 +83,7 @@ def load_dataset_builder(
         use_auth_token=use_auth_token,
         data_files=data_files,
     )
+    hash = hash_python_lines([hash, script_version]) # rehasing and consider script version
     builder_cls = import_main_class(dataset_module) # import the class from our own file
 
     # Instantiate the dataset builder
