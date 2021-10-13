@@ -1,0 +1,3 @@
+[submodule "experiments/PredictiveEngagement"]
+	path = experiments/PredictiveEngagement
+	url = https://github.com/PlusLabNLP/PredictiveEngagement.git
