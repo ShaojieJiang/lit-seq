@@ -1,4 +1,5 @@
 import json
+from math import ceil
 
 import numpy as np
 import requests
@@ -9,6 +10,7 @@ from scipy.stats.stats import spearmanr
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from experiments.dialog_rpt_scorer import DialogRPTScorer
+from lightning_transformers.core.utils import load_my_dataset
 
 
 # Evaluate
@@ -20,9 +22,9 @@ r = requests.get(_URL)
 model = DialogRPTScorer(80, fp16=False).cuda()
 
 @torch.no_grad()
-def score(text):
-    score = model.score_text(text)
-    return score.item()
+def score(texts):
+    score = model.score_text(texts)
+    return score
 
 data = json.loads(r.content)
 model_scores = []
@@ -45,3 +47,37 @@ pearson = pearsonr(model_scores, human_scores)
 
 print(f'Pearson correlation: {pearson[0]}, p-val: {pearson[1]}')
 print(f'Spearman correlation: {spearman[0]}, p-val: {spearman[1]}')
+
+# other datasets
+from lightning_transformers.task.nlp.text_regression.datasets import my_daily_dialog, my_personachat, my_blended_skill_talk, my_wizard_of_wikipedia, my_empathetic_dialogues
+
+for module in [my_daily_dialog, my_personachat, my_blended_skill_talk, my_wizard_of_wikipedia, my_empathetic_dialogues]:
+    model_scores = []
+    human_scores = []
+    hist_sz = 2
+    name = module.__name__.split('.')[-1]
+    dataset = load_my_dataset(
+                        module,
+                        name=name,
+                        split='test',
+                        history_delimeter= ' <|end_of_text|> ',
+                        history_size=hist_sz,
+                        script_version=f'histsz_{hist_sz}',
+                    )
+
+    bsz = 20
+    dataset = dataset.sort('turn_id', reverse=True)
+    num_batches = ceil(len(dataset) / bsz)
+    for i in tqdm.tqdm(range(num_batches)):
+        batch = dataset[i*bsz : (i+1)*bsz]
+        texts = batch['text']
+        human_scores.extend(batch['label'])
+        
+        engaging = score(texts)
+        model_scores.extend(engaging)
+
+    spearman = spearmanr(model_scores, human_scores)
+    pearson = pearsonr(model_scores, human_scores)
+
+    print(f'{name} Pearson correlation: {pearson[0]}, p-val: {pearson[1]}')
+    print(f'{name} Spearman correlation: {spearman[0]}, p-val: {spearman[1]}')

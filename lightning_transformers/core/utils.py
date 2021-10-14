@@ -83,7 +83,10 @@ def load_dataset_builder(
         use_auth_token=use_auth_token,
         data_files=data_files,
     )
-    hash = hash_python_lines([hash, script_version]) # rehasing and consider script version
+    rehash_fields = [hash, script_version]
+    if 'history_delimeter' in config_kwargs:
+        rehash_fields.append(config_kwargs['history_delimeter'])
+    hash = hash_python_lines(rehash_fields) # rehasing and consider script version
     builder_cls = import_main_class(dataset_module) # import the class from our own file
 
     # Instantiate the dataset builder

@@ -39,7 +39,7 @@ pearson = pearsonr(model_scores, human_scores)
 print(f'FED Pearson correlation: {pearson[0]}, p-val: {pearson[1]}')
 print(f'FED Spearman correlation: {spearman[0]}, p-val: {spearman[1]}')
 
-# daily_dialog
+# other datasets
 from lightning_transformers.task.nlp.text_regression.datasets import my_daily_dialog, my_personachat, my_blended_skill_talk, my_wizard_of_wikipedia, my_empathetic_dialogues
 
 for module in [my_daily_dialog, my_personachat, my_blended_skill_talk, my_wizard_of_wikipedia, my_empathetic_dialogues]:
@@ -51,7 +51,7 @@ for module in [my_daily_dialog, my_personachat, my_blended_skill_talk, my_wizard
                         module,
                         name=name,
                         split='test',
-                        history_delimeter= ' [SEP] ',
+                        history_delimeter= ' <|endoftext|> ',
                         history_size=hist_sz,
                         script_version=f'histsz_{hist_sz}',
                     )
