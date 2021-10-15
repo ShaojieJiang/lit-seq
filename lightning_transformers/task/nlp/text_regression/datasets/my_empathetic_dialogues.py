@@ -6,6 +6,8 @@ import os
 
 import datasets
 
+from lightning_transformers.task.nlp.text_regression.datasets import dataset_base
+
 _CITATION = """\
 @inproceedings{rashkin2019towards,
   title = {Towards Empathetic Open-domain Conversation Models: a New Benchmark and Dataset},
@@ -21,16 +23,11 @@ PyTorch original implementation of Towards Empathetic Open-domain Conversation M
 _URL = "https://dl.fbaipublicfiles.com/parlai/empatheticdialogues/empatheticdialogues.tar.gz"
 
 
-class EmpatheticDialogues(datasets.GeneratorBasedBuilder):
+class EmpatheticDialogues(dataset_base.DatasetBase):
     """TODO(empathetic_dialogues): Short description of my dataset."""
 
     # TODO(empathetic_dialogues): Set up version.
     VERSION = datasets.Version("0.1.0")
-    
-    def __init__(self, *args, writer_batch_size=None, **kwargs):
-        self.history_delimeter = kwargs.pop('history_delimeter')
-        self.history_size = kwargs.pop('history_size')
-        super().__init__(*args, writer_batch_size=writer_batch_size, **kwargs)
 
     def _info(self):
         # TODO(empathetic_dialogues): Specifies the datasets.DatasetInfo object
@@ -112,23 +109,5 @@ class EmpatheticDialogues(datasets.GeneratorBasedBuilder):
             
             if len(current_dialog) > 1: # add last
                 dialogs.append(current_dialog)
-
-            for dialog_id, dialog in enumerate(dialogs):
-
-                dialog_len = len(dialog)
-                for turn_id, turn in enumerate(dialog):
-                    label = dialog_len - turn_id - 1
-                    norm10 = label / (dialog_len - 1) * 10
-
-                    history = dialog[:turn_id + 1]
-                    if self.history_size > 0:
-                        history_to_keep = history[-self.history_size:]
-                    else:
-                        history_to_keep = history
-
-                    yield f'{dialog_id}-{turn_id}', {
-                        "text": self.history_delimeter.join(history_to_keep),
-                        "label": norm10,
-                        "dialog_id": dialog_id,
-                        "turn_id": turn_id,
-                    }
+            
+            return self._common_generate_examples(dialogs)

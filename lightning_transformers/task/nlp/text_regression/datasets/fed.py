@@ -6,6 +6,8 @@ import json
 import datasets
 import numpy as np
 
+from lightning_transformers.task.nlp.text_regression.datasets import dataset_base
+
 # TODO(fed): BibTeX citation
 _CITATION = """\
 
@@ -18,16 +20,11 @@ _DESCRIPTION = """\
 _URL = "http://shikib.com/fed_data.json"
 
 
-class FED(datasets.GeneratorBasedBuilder):
+class FED(dataset_base.DatasetBase):
     """TODO(fed): Short description of my dataset."""
 
     # TODO(fed): Set up version.
     VERSION = datasets.Version("1.0.0")
-    
-    def __init__(self, *args, writer_batch_size=None, **kwargs):
-        self.history_delimeter = kwargs.pop('history_delimeter')
-        self.history_size = kwargs.pop('history_size')
-        super().__init__(*args, writer_batch_size=writer_batch_size, **kwargs)
 
     def _info(self):
         # TODO(fed): Specifies the datasets.DatasetInfo object

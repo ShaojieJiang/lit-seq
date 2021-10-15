@@ -5,6 +5,8 @@ import os
 
 import datasets
 
+from lightning_transformers.task.nlp.text_regression.datasets import dataset_base
+
 # TODO(blended_skill_talk): BibTeX citation
 _CITATION = """\
 @article{zhang2018personalizing,
@@ -22,16 +24,11 @@ A dataset of 7k conversations explicitly designed to exhibit multiple conversati
 _URL = "http://parl.ai/downloads/personachat/personachat.tgz"
 
 
-class Personachat(datasets.GeneratorBasedBuilder):
+class Personachat(dataset_base.DatasetBase):
     """TODO(blended_skill_talk): Short description of my dataset."""
 
     # TODO(blended_skill_talk): Set up version.
     VERSION = datasets.Version("1.0.0")
-    
-    def __init__(self, *args, writer_batch_size=None, **kwargs):
-        self.history_delimeter = kwargs.pop('history_delimeter')
-        self.history_size = kwargs.pop('history_size')
-        super().__init__(*args, writer_batch_size=writer_batch_size, **kwargs)
 
     def _info(self):
         # TODO(blended_skill_talk): Specifies the datasets.DatasetInfo object
@@ -98,21 +95,5 @@ class Personachat(datasets.GeneratorBasedBuilder):
                 context = ' '.join(context.split(' ')[1:]) # get rid of the number in the beginning
                 current_dialog.extend([context, response])
 
-        for dialog_id, dialog in enumerate(dialogs):
-            dialog_len = len(dialog)
-            for turn_id, turn in enumerate(dialog):
-                label = dialog_len - turn_id - 1
-                norm10 = label / (dialog_len - 1) * 10
-
-                history = dialog[:turn_id + 1]
-                if self.history_size > 0:
-                    history_to_keep = history[-self.history_size:]
-                else:
-                    history_to_keep = history
-
-                yield f'{dialog_id}-{turn_id}', {
-                    "text": self.history_delimeter.join(history_to_keep),
-                    "label": norm10,
-                    "dialog_id": dialog_id,
-                    "turn_id": turn_id,
-                }
+        return self._common_generate_examples(dialogs)
+        
