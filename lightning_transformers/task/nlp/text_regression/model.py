@@ -79,14 +79,23 @@ class TextRegressionTransformer(HFTransformer):
         return loss
 
     def validation_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
-        loss = self.common_step(batch)
-        self.log("val_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True, add_dataloader_idx=False)
-
-        return loss
-
-    def test_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
+        val_dataloader = self.val_dataloader()
+        if isinstance(val_dataloader, list) and dataloader_idx == len(val_dataloader) - 1:# only run common_eval for fed dataset
+            return self.common_step_return_scores(batch, stage='val')
+        else:
+            loss = self.common_step(batch)
+            self.log("val_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True, add_dataloader_idx=False)
+    
+    def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        val_daterloader = self.val_dataloader()
+        if isinstance(val_daterloader, list) and len(val_daterloader) > 1: # the last dataloader is for FED
+            pearson, spearman = self.eval_correlations(outputs[-1])
+            self.log("fed_pearson", pearson[0])
+            self.log("fed_spearman", spearman[0])
+    
+    def common_step_return_scores(self, batch, stage='val'):
         loss, scores = self.common_step(batch, return_scores=True)
-        self.log("test_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True)
+        self.log(f"{stage}_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True)
 
         return {
             'loss': loss,
@@ -97,7 +106,7 @@ class TextRegressionTransformer(HFTransformer):
             'turn_id': batch['turn_id'].cpu().tolist(),
         }
     
-    def test_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+    def eval_correlations(self, outputs: EPOCH_OUTPUT) -> None:
         # collate all results in the format of List[dialogs[turns]]
         dialogs = defaultdict(list)
         for batch_output in outputs:
@@ -112,9 +121,17 @@ class TextRegressionTransformer(HFTransformer):
             dialog = sorted(dialog, key=lambda x: int(x[-1]))
             ordered_dialogs.append(dialog)
 
-        self.calc_correlations_first_last_n(ordered_dialogs)
+        pearson, spearman = self.calc_correlations_first_last_n(ordered_dialogs)
         self.calc_correlations_first_last_n(ordered_dialogs, n=[3, 2, 1])
-        self.get_greetings_farewells(ordered_dialogs)
+        # self.get_greetings_farewells(ordered_dialogs)
+
+        return pearson, spearman
+
+    def test_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
+        return self.common_step_return_scores(batch, stage='test')
+    
+    def test_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        self.eval_correlations(outputs) # no logging or return needed
 
     def get_greetings_farewells(self, ordered_dialogs):
         GREETING_THRESH = 8.5
@@ -143,7 +160,7 @@ class TextRegressionTransformer(HFTransformer):
         fp.write('\n')
         # fp.write('============\n\n')
 
-    def calc_correlations(self, ordered_dialogs):
+    def pearson_spearman_correlations(self, ordered_dialogs):
         all_labels_scores = [[(turn[2], turn[1]) for turn in dialog] for dialog in ordered_dialogs]
 
         flatten_scores = [turn for dialog in all_labels_scores for turn in dialog]
@@ -152,17 +169,19 @@ class TextRegressionTransformer(HFTransformer):
     
     def calc_correlations_first_last_n(self, ordered_dialogs, n=None):
         if n is None:
-            pearson, spearman = self.calc_correlations(ordered_dialogs)
+            pearson, spearman = self.pearson_spearman_correlations(ordered_dialogs)
             print(f'Overall Pearson: {pearson[0]:.2f}, pval: {pearson[1]}')
             print(f'Overall Spearman: {spearman[0]:.2f}, pval: {spearman[1]}')
         elif type(n) is int:
             removed_intermediate = [dialog[:n] + dialog[-n:] if len(dialog) > 2*n else dialog for dialog in ordered_dialogs]
-            pearson, spearman = self.calc_correlations(removed_intermediate)
+            pearson, spearman = self.pearson_spearman_correlations(removed_intermediate)
             print(f'First/Last {n} P: {pearson[0]:.2f}, pval: {pearson[1]}')
             print(f'First/Last {n} S: {spearman[0]:.2f}, pval: {spearman[1]}')
         elif type(n) is list:
             for N in n:
-                self.calc_correlations_first_last_n(ordered_dialogs, n=N)
+                pearson, spearman = self.calc_correlations_first_last_n(ordered_dialogs, n=N)
+        
+        return pearson, spearman
 
     def configure_metrics(self, _) -> None:
         # TODO: add correlation metric?

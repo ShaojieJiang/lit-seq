@@ -83,7 +83,7 @@ class TextRegressionDataModule(HFDataModule):
         if self.cfg.dataset_name is not None:
             # Download and load the Huggingface dataset.
             try:
-                dataset_names = ['my_daily_dialog', 'my_personachat', 'my_empathetic_dialogues', 'my_wizard_of_wikipedia']
+                dataset_names = ['my_daily_dialog', 'my_personachat', 'my_empathetic_dialogues', 'my_wizard_of_wikipedia', 'fed']
                 datasets = {}
                 for dataset_name in dataset_names:
                     dataset_module = import_module(f'..datasets.{dataset_name}', self.__module__)
@@ -121,7 +121,9 @@ class TextRegressionDataModule(HFDataModule):
 
     def train_dataloader(self) -> DataLoader:
         train_loaders = []
-        for _, dataset in self.ds.items():
+        for name, dataset in self.ds.items():
+            if name == 'fed':
+                continue
             dataloader = DataLoader(
                 dataset["train"],
                 batch_size=self.batch_size,
@@ -134,7 +136,7 @@ class TextRegressionDataModule(HFDataModule):
     
     def val_dataloader(self) -> DataLoader:
         val_loaders = []
-        for _, dataset in self.ds.items():
+        for name, dataset in self.ds.items():
             dataloader = DataLoader(
                 dataset["validation"],
                 batch_size=self.batch_size,
@@ -142,12 +144,18 @@ class TextRegressionDataModule(HFDataModule):
                 collate_fn=self.collate_fn,
                 pin_memory=True,
             )
+            if name == 'fed':
+                fed_loader = dataloader
+                continue
             val_loaders.append(dataloader)
+        val_loaders.append(fed_loader) # add fed to the last
         return val_loaders
 
     def test_dataloader(self) -> Optional[DataLoader]:
         test_loaders = []
-        for _, dataset in self.ds.items():
+        for name, dataset in self.ds.items():
+            if name == 'fed':
+                continue
             if "test" in dataset:
                 dataloader = DataLoader(
                     dataset["test"],

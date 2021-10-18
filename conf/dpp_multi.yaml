@@ -6,4 +6,4 @@ training:
   run_test_after_fit: False
 
 trainer:
-  limit_val_batches: 0.25
+  limit_val_batches: 150 # maximum batches for each dataloader, enough for FED
