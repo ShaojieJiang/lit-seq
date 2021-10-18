@@ -23,7 +23,7 @@ class WizardOfWikipedia(dataset_base.DatasetBase):
     """TODO(blended_skill_talk): Short description of my dataset."""
 
     # TODO(blended_skill_talk): Set up version.
-    VERSION = datasets.Version("1.0.0")
+    VERSION = datasets.Version("1.0.1") # norm to [0, 1]
 
     def _info(self):
         # TODO(blended_skill_talk): Specifies the datasets.DatasetInfo object

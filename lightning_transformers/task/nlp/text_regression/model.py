@@ -60,12 +60,12 @@ class TextRegressionTransformer(HFTransformer):
             elif self.cfg.pooling_method == 'min':
                 pooled = masked.min(dim=1)[0]
             logits = self.linear(pooled).squeeze(-1)
-        scores_relu10 = logits.clamp(0, 10)
+        scores_relu1 = logits.clamp(0, 1)
         # Avg baseline
         # scores_relu10 = (7.84 - batch['turn_id']).clamp(min=0.0) / 0.784
-        loss = self.criterion(scores_relu10, batch['labels'])
+        loss = 100 * self.criterion(scores_relu1, batch['labels']) # * 100 should be the same as norm10
         if return_scores:
-            return loss, scores_relu10
+            return loss, scores_relu1
 
         return loss
 

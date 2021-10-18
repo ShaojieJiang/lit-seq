@@ -24,7 +24,7 @@ class FED(dataset_base.DatasetBase):
     """TODO(fed): Short description of my dataset."""
 
     # TODO(fed): Set up version.
-    VERSION = datasets.Version("1.0.0")
+    VERSION = datasets.Version("1.0.1") # norm to [0, 1]
 
     def _info(self):
         # TODO(fed): Specifies the datasets.DatasetInfo object
@@ -84,7 +84,7 @@ class FED(dataset_base.DatasetBase):
                     history_text = history_text.replace('System: ', '').replace('User: ', '')
                     engaging = row['annotations']['Engaging']
                     avg_engaging = np.mean(engaging)
-                    norm10 = avg_engaging * 5
+                    norm1 = avg_engaging / 2
 
                     history = history_text.split('\n')
                     if self.history_size > 0:
@@ -94,7 +94,7 @@ class FED(dataset_base.DatasetBase):
 
                     yield f'{dialog_id}', {
                         "text": self.history_delimeter.join(history_to_keep),
-                        "label": norm10,
+                        "label": norm1,
                         "dialog_id": dialog_id,
                         "turn_id": len(history) - 1,
                     }

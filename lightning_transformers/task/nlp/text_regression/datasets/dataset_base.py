@@ -14,7 +14,7 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
             dialog_len = len(dialog)
             for turn_id, turn in enumerate(dialog):
                 label = dialog_len - turn_id - 1
-                norm10 = label / (dialog_len - 1) * 10
+                norm1 = label / (dialog_len - 1)
 
                 history = dialog[:turn_id + 1]
                 if self.history_size > 0:
@@ -24,7 +24,7 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
 
                 yield f'{dialog_id}-{turn_id}', {
                     "text": self.history_delimeter.join(history_to_keep),
-                    "label": norm10,
+                    "label": norm1,
                     "dialog_id": dialog_id,
                     "turn_id": turn_id,
                 }
