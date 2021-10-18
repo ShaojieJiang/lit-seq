@@ -8,5 +8,8 @@ dataset:
 task:
   downstream_model_type: transformers.BertModel
   cfg:
-    task_name: text_regression_flat_hist${dataset.cfg.history_size}_${task.cfg.pooling_method}_pooling
+    task_name: text_regression_flat_hist${dataset.cfg.history_size}_${task.cfg.pooling_method}_pooling_norm1
     pooling_method: max
+
+trainer:
+  num_sanity_val_steps: 19 # full check on FED

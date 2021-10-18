@@ -1,4 +1,5 @@
 import datasets
+import random
 
 
 class DatasetBase(datasets.GeneratorBasedBuilder):
@@ -21,6 +22,11 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                     history_to_keep = history[-self.history_size:]
                 else:
                     history_to_keep = history
+                
+                history_to_keep = self._pad_random_end(history_to_keep, dialogs, dialog_id)
+                history_to_keep.reverse()
+                # while len(history_to_keep) < self.history_size:
+                #     history_to_keep.append('') # pad empty turns
 
                 yield f'{dialog_id}-{turn_id}', {
                     "text": self.history_delimeter.join(history_to_keep),
@@ -28,3 +34,20 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                     "dialog_id": dialog_id,
                     "turn_id": turn_id,
                 }
+
+    def _pad_random_end(self, history, dialogs, dialog_id):
+        turns_needed = self.history_size - len(history)
+        if turns_needed <= 0:
+            return history # no padding needed
+
+        rand_dialog_id = None
+        while True:
+            rand_dialog_id = random.randrange(len(dialogs))
+            if rand_dialog_id == dialog_id or len(dialogs[rand_dialog_id]) < turns_needed:
+                continue
+            break
+        # found rand_dialog_id
+        pads = dialogs[rand_dialog_id][-turns_needed:]
+        history = pads + history
+
+        return history
