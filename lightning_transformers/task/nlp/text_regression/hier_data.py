@@ -22,10 +22,10 @@ from transformers import PreTrainedTokenizerBase
 from transformers.data.data_collator import DataCollatorWithPadding
 
 from lightning_transformers.core.utils import load_my_dataset
-from lightning_transformers.task.nlp.text_regression.data import TextRegressionDataModule
+from lightning_transformers.task.nlp.text_regression.data import TextRegressionDataModule, TextRegressionMultiDataModule
 
 
-class HierarchicalTextRegressionDataModule(TextRegressionDataModule):
+class HierarchicalDataMixin:
     """Defines the ``LightningDataModule`` for Text Regression Datasets."""
 
     def process_data(self, dataset: Dataset, stage: Optional[str] = None) -> Dataset:
@@ -62,7 +62,7 @@ class HierarchicalTextRegressionDataModule(TextRegressionDataModule):
     def preprocess(ds: Dataset, **fn_kwargs) -> Dataset:
         ds = ds.map(
             # todo: change this to self.convert_to_features for users to override
-            HierarchicalTextRegressionDataModule.convert_to_features,
+            HierarchicalDataMixin.convert_to_features,
             batched=True,
             with_indices=True,
             fn_kwargs=fn_kwargs,
@@ -121,3 +121,11 @@ class DataCollatorWithTurnAndDialogPadding(DataCollatorWithPadding):
                 pad_len = max_turns - len(dialogue[keys[0]])
                 for key in keys:
                     dialogue[key] += pad_len * [dummy_turn[key]]
+
+
+class HierarchicalTextRegressionDataModule(HierarchicalDataMixin, TextRegressionDataModule):
+    pass
+
+
+class HierarchicalTextRegressionMultiDataModule(HierarchicalDataMixin, TextRegressionMultiDataModule):
+    pass

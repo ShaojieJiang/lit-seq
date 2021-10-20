@@ -1,0 +1,14 @@
+defaults: # loads default configs
+  - dpp_hier
+
+dataset:
+  _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionMultiDataModule
+  cfg:
+    dataset_name: multi
+
+training:
+  run_test_after_fit: False
+
+trainer:
+  limit_val_batches: 150 # maximum batches for each dataloader, enough for FED
+  num_sanity_val_steps: 19 # full check on FED

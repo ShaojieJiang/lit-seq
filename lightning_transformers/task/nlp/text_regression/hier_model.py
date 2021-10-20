@@ -58,7 +58,7 @@ class HierarchicalBert(torch.nn.Module):
         elif self.pooling_method == 'min':
             pass
 
-        return score
+        return score.squeeze(-1)
 
 
 class HierarchicalTextRegressionTransformer(TextRegressionTransformer):
@@ -92,4 +92,26 @@ class HierarchicalTextRegressionTransformer(TextRegressionTransformer):
             return loss, scores_relu1
 
         return loss
+    
+    def common_step_return_scores(self, batch, stage='val'):
+        loss, scores = self.common_step(batch, return_scores=True)
+        self.log(f"{stage}_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True)
+
+        texts = [[] for _ in range(len(batch['labels']))]
+        for turn_batch in batch['turn_batches']:
+            turn_texts = self.tokenizer.batch_decode(turn_batch['input_ids'], skip_special_tokens=True)
+            for i, turn_text in enumerate(turn_texts):
+                if turn_text != '':
+                    texts[i].append(turn_text)
+        
+        texts = [turn_texts[-1] for turn_texts in texts] # only keep the last turn
+
+        return {
+            'loss': loss,
+            'scores': scores.cpu().tolist(),
+            'text': texts,
+            'labels': batch['labels'].cpu().tolist(),
+            'dialog_id': batch['dialog_id'].cpu().tolist(),
+            'turn_id': batch['turn_id'].cpu().tolist(),
+        }
         

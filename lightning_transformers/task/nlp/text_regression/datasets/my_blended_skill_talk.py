@@ -39,14 +39,7 @@ class BlendedSkillTalk(dataset_base.DatasetBase):
             # This is the description that will appear on the datasets page.
             description=_DESCRIPTION,
             # datasets.features.FeatureConnectors
-            features=datasets.Features(
-                {
-                    "text": datasets.Value("string"),
-                    "label": datasets.Value("float"),
-                    "dialog_id": datasets.Value("int32"),
-                    "turn_id": datasets.Value("int32"),
-                }
-            ),
+            features=self._features(),
             # If there's a common (input, target) tuple from the features,
             # specify them here. They'll be used if as_supervised=True in
             # builder.as_dataset.
