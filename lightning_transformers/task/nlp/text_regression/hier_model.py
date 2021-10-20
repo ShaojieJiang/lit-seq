@@ -29,9 +29,12 @@ class HierarchicalBert(torch.nn.Module):
 
     def forward(self, turn_batches, **kwargs):
         turn_outputs = []
+        dialog_attention_mask = []
         for turn_batch in turn_batches:
             turn_output = self.turn_encoder(**turn_batch)['pooler_output'].unsqueeze(1)
             turn_outputs.append(turn_output)
+            turn_attn_mask = (turn_batch['attention_mask'].sum(dim=1, keepdim=True) > 1).long()
+            dialog_attention_mask.append(turn_attn_mask)
 
         # # pooling: mean/max/min/cls
         # if self.cfg.pooling_method == 'cls':
@@ -48,7 +51,8 @@ class HierarchicalBert(torch.nn.Module):
         #     logits = self.linear(pooled).squeeze(-1)
 
         hier_input = torch.cat(turn_outputs, dim=1)
-        output = self.hier_encoder(inputs_embeds=hier_input)
+        dialog_attention_mask = torch.cat(dialog_attention_mask, dim=-1)
+        output = self.hier_encoder(inputs_embeds=hier_input, attention_mask=dialog_attention_mask)
         if self.pooling_method == 'first':
             score = self.linear(output['pooler_output'])
         elif self.pooling_method == 'mean':

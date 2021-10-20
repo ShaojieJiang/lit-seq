@@ -5,6 +5,7 @@ dataset:
   _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionMultiDataModule
   cfg:
     dataset_name: multi
+    # history_size: 4
 
 training:
   run_test_after_fit: False
