@@ -64,7 +64,7 @@ emotion_label = {
 class DailyDialog(dataset_base.DatasetBase):
     """DailyDialog: A Manually Labelled Multi-turn Dialogue Dataset"""
 
-    VERSION = datasets.Version("1.0.2") # norm to [0, 1]
+    VERSION = datasets.Version("1.0.1") # norm to [0, 1]
 
     __EOU__ = " __eou__ " # get rid of white spaces between turns
 

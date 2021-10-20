@@ -117,7 +117,7 @@ class FED(dataset_base.DatasetBase):
                 else:
                     history_to_keep = history
                 
-                history_to_keep = self._pad_random_end(history_to_keep, dialogs, dialog_id)
+                # history_to_keep = self._pad_random_end(history_to_keep, dialogs, dialog_id)
                 history_to_keep.reverse()
                 # while len(history_to_keep) < self.history_size:
                 #     history_to_keep.append('') # pad empty turns
