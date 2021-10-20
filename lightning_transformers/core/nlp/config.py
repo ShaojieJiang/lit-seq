@@ -25,6 +25,7 @@ class HFTransformerDataConfig(TransformerDataConfig):
     limit_test_samples: Optional[int] = None
     history_delimeter: Optional[str] = None
     history_size: Optional[int] = -1
+    hierarchical: Optional[bool] = False
 
 
 @dataclass

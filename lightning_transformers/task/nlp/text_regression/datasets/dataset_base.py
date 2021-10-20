@@ -8,7 +8,27 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
     def __init__(self, *args, writer_batch_size=None, **kwargs):
         self.history_delimeter = kwargs.pop('history_delimeter')
         self.history_size = kwargs.pop('history_size')
+        self.hierarchical = kwargs.pop('hierarchical', False)
+        if self.hierarchical:
+            hier_version_str = f'{self.VERSION.major}.{self.VERSION.minor}.{self.VERSION.patch + 100}'
+            self.VERSION = datasets.Version(hier_version_str)
         super().__init__(*args, writer_batch_size=writer_batch_size, **kwargs)
+    
+    def _features(self):
+        if self.hierarchical:
+            text_feature = datasets.Sequence(datasets.Value("string"))
+        else:
+            text_feature = datasets.Value("string")
+        return datasets.Features(
+                {
+                    "text": text_feature,
+                    "label": datasets.Value("float"),
+                    # "act": datasets.ClassLabel(names=list(act_label.values())),
+                    # "emotion": datasets.ClassLabel(names=list(emotion_label.values())),
+                    "dialog_id": datasets.Value("int32"),
+                    "turn_id": datasets.Value("int32"),
+                }
+            )
     
     def _common_generate_examples(self, dialogs):
         for dialog_id, dialog in enumerate(dialogs):
@@ -27,9 +47,14 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                 history_to_keep.reverse()
                 # while len(history_to_keep) < self.history_size:
                 #     history_to_keep.append('') # pad empty turns
+                
+                if self.hierarchical:
+                    text = history_to_keep
+                else:
+                    text = self.history_delimeter.join(history_to_keep)
 
                 yield f'{dialog_id}-{turn_id}', {
-                    "text": self.history_delimeter.join(history_to_keep),
+                    "text": text,
                     "label": norm1,
                     "dialog_id": dialog_id,
                     "turn_id": turn_id,

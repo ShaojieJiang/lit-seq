@@ -28,7 +28,7 @@ class TextRegressionDataModule(HFDataModule):
 
     def process_data(self, dataset: Dataset, stage: Optional[str] = None) -> Dataset:
         input_feature_fields = [k for k, v in dataset["train"].features.items() if k not in ["label", "idx"]]
-        dataset = TextRegressionDataModule.preprocess(
+        dataset = self.__class__.preprocess(
             dataset,
             tokenizer=self.tokenizer,
             input_feature_fields=input_feature_fields,
@@ -91,6 +91,7 @@ class TextRegressionDataModule(HFDataModule):
                     history_delimeter=self.cfg.history_delimeter,
                     history_size=self.cfg.history_size,
                     script_version=f'histsz_{self.cfg.history_size}',
+                    hierarchical=self.cfg.hierarchical,
                 )
             except: # not a customised dataset
                 return load_dataset(

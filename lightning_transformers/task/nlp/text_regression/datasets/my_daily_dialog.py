@@ -71,16 +71,7 @@ class DailyDialog(dataset_base.DatasetBase):
     def _info(self):
         return datasets.DatasetInfo(
             description=_DESCRIPTION,
-            features=datasets.Features(
-                {
-                    "text": datasets.Value("string"),
-                    "label": datasets.Value("float"),
-                    # "act": datasets.ClassLabel(names=list(act_label.values())),
-                    # "emotion": datasets.ClassLabel(names=list(emotion_label.values())),
-                    "dialog_id": datasets.Value("int32"),
-                    "turn_id": datasets.Value("int32"),
-                }
-            ),
+            features=self._features(),
             supervised_keys=None,
             homepage="http://yanran.li/dailydialog",
             citation=_CITATION,

@@ -1,0 +1,16 @@
+defaults: # loads default configs
+  - dpp
+
+dataset:
+  _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionDataModule
+  cfg:
+    history_delimeter: ' [SEP] ' # not used by hierarchical model
+    history_size: 2
+    hierarchical: True
+
+task:
+  _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionTransformer
+  downstream_model_type: transformers.BertModel
+  cfg:
+    task_name: text_regression_hierarchical_${task.cfg.pooling_method}_pooling
+    pooling_method: first # first pos, mean, max, min

@@ -33,14 +33,7 @@ class FED(dataset_base.DatasetBase):
             # This is the description that will appear on the datasets page.
             description=_DESCRIPTION,
             # datasets.features.FeatureConnectors
-            features=datasets.Features(
-                {
-                    "text": datasets.Value("string"),
-                    "label": datasets.Value("float"),
-                    "dialog_id": datasets.Value("int32"),
-                    "turn_id": datasets.Value("int32"),
-                }
-            ),
+            features=self._features(),
             # If there's a common (input, target) tuple from the features,
             # specify them here. They'll be used if as_supervised=True in
             # builder.as_dataset.
@@ -128,9 +121,14 @@ class FED(dataset_base.DatasetBase):
                 history_to_keep.reverse()
                 # while len(history_to_keep) < self.history_size:
                 #     history_to_keep.append('') # pad empty turns
+                
+                if self.hierarchical:
+                    text = history_to_keep
+                else:
+                    text = self.history_delimeter.join(history_to_keep)
 
                 yield f'{dialog_id}-{turn_id}', {
-                    "text": self.history_delimeter.join(history_to_keep),
+                    "text": text,
                     "label": norm1,
                     "dialog_id": dialog_id,
                     "turn_id": turn_id,

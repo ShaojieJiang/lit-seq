@@ -8,7 +8,7 @@ dataset:
 task:
   downstream_model_type: transformers.BertModel
   cfg:
-    task_name: text_regression_flat_hist${dataset.cfg.history_size}_${task.cfg.pooling_method}_pooling_norm1
+    task_name: text_regression_flat_hist${dataset.cfg.history_size}_${task.cfg.pooling_method}_pooling
     pooling_method: max
 
 trainer:
