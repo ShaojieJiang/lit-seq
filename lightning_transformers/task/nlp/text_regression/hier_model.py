@@ -31,38 +31,39 @@ class HierarchicalBert(torch.nn.Module):
         turn_outputs = []
         dialog_attention_mask = []
         for turn_batch in turn_batches:
-            turn_output = self.turn_encoder(**turn_batch)['pooler_output'].unsqueeze(1)
+            turn_output = self.turn_encoder(**turn_batch)
+            if self.pooling_method == 'first':
+                turn_output = turn_output['pooler_output'].unsqueeze(1)
+            else:
+                masked = turn_output['last_hidden_state'] * turn_batch['attention_mask'].unsqueeze(-1) # bsz * seq_len * hidden_sz
+                if self.pooling_method == 'mean':
+                    turn_output = masked.mean(dim=1, keepdim=True)
+                elif self.pooling_method == 'max':
+                    turn_output = masked.max(dim=1, keepdim=True)[0]
+                elif self.pooling_method == 'min':
+                    turn_output = masked.min(dim=1, keepdim=True)[0]
+
             turn_outputs.append(turn_output)
             turn_attn_mask = (turn_batch['attention_mask'].sum(dim=1, keepdim=True) > 1).long()
             dialog_attention_mask.append(turn_attn_mask)
-
-        # # pooling: mean/max/min/cls
-        # if self.cfg.pooling_method == 'cls':
-        #     logits = outputs.logits.squeeze(-1)
-        # else:
-        #     # apply attention mask
-        #     masked = outputs.last_hidden_state * inputs['attention_mask'].unsqueeze(-1) # bsz * seq_len * hidden_sz
-        #     if self.cfg.pooling_method == 'mean':
-        #         pooled = masked.mean(dim=1)
-        #     elif self.cfg.pooling_method == 'max':
-        #         pooled = masked.max(dim=1)[0]
-        #     elif self.cfg.pooling_method == 'min':
-        #         pooled = masked.min(dim=1)[0]
-        #     logits = self.linear(pooled).squeeze(-1)
 
         hier_input = torch.cat(turn_outputs, dim=1)
         dialog_attention_mask = torch.cat(dialog_attention_mask, dim=-1)
         output = self.hier_encoder(inputs_embeds=hier_input, attention_mask=dialog_attention_mask)
         if self.pooling_method == 'first':
-            score = self.linear(output['pooler_output'])
-        elif self.pooling_method == 'mean':
-            pass
-        elif self.pooling_method == 'max':
-            pass
-        elif self.pooling_method == 'min':
-            pass
+            logits = output['pooler_output']
+        else:
+            masked = output['last_hidden_state'] * dialog_attention_mask.unsqueeze(-1)
+            if self.pooling_method == 'mean':
+                logits = masked.mean(dim=1)
+            elif self.pooling_method == 'max':
+                logits = masked.max(dim=1)[0]
+            elif self.pooling_method == 'min':
+                logits = masked.min(dim=1)[0]
 
-        return score.squeeze(-1)
+        scores = self.linear(logits)
+
+        return scores.squeeze(-1)
 
 
 class HierarchicalTextRegressionTransformer(TextRegressionTransformer):
