@@ -23,8 +23,6 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                 {
                     "text": text_feature,
                     "label": datasets.Value("float"),
-                    # "act": datasets.ClassLabel(names=list(act_label.values())),
-                    # "emotion": datasets.ClassLabel(names=list(emotion_label.values())),
                     "dialog_id": datasets.Value("int32"),
                     "turn_id": datasets.Value("int32"),
                 }
@@ -34,20 +32,29 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
         for dialog_id, dialog in enumerate(dialogs):
             dialog_len = len(dialog)
             for turn_id, turn in enumerate(dialog):
-                label = dialog_len - turn_id - 1
-                norm1 = label / (dialog_len - 1)
+                if type(turn) is str:
+                    label = dialog_len - turn_id - 1
+                    norm1 = label / (dialog_len - 1)
 
-                history = dialog[:turn_id + 1]
+                    history = dialog[:turn_id + 1]
+                elif type(turn) is tuple: # a turn with human annotations
+                    _, engaging = turn
+                    if engaging is None: # not every turn is annotated
+                        continue
+
+                    norm1 = engaging
+                    history = [turn[0] for turn in dialog[:turn_id + 1]]
+
                 if self.history_size > 0:
                     history_to_keep = history[-self.history_size:]
                 else:
                     history_to_keep = history
-                
+                    
                 # history_to_keep = self._pad_random_end(history_to_keep, dialogs, dialog_id)
-                history_to_keep.reverse()
+                # history_to_keep.reverse()
                 # while len(history_to_keep) < self.history_size:
                 #     history_to_keep.append('') # pad empty turns
-                
+                    
                 if self.hierarchical:
                     text = history_to_keep
                 else:

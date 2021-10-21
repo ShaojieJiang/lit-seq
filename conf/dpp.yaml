@@ -18,6 +18,7 @@ dataset:
   cfg:
     history_delimeter: ' [SEP] '
     history_size: 1
+    hierarchical: False
 
 task:
   cfg:

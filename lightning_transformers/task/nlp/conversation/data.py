@@ -36,22 +36,22 @@ class ConversationDataModule(Seq2SeqDataModule):
         data_files = data_files if data_files else None
         if self.cfg.dataset_name is not None:
             # Download and load the Huggingface dataset.
-            try:
-                dataset_module = import_module(f'..datasets.{self.cfg.dataset_name}', self.__module__)
-                return load_my_dataset(
-                    dataset_module,
-                    name=self.cfg.dataset_config_name,
-                    cache_dir=self.cfg.cache_dir,
-                    data_files=data_files,
-                    delimeter=self.cfg.history_delimeter,
-                )
-            except: # not a customised dataset
-                return load_dataset_builder(
-                    path=self.cfg.dataset_name,
-                    name=self.cfg.dataset_config_name,
-                    cache_dir=self.cfg.cache_dir,
-                    data_files=data_files,
-                )
+            # try:
+            dataset_module = import_module(f'..datasets.{self.cfg.dataset_name}', self.__module__)
+            return load_my_dataset(
+                dataset_module,
+                name=self.cfg.dataset_config_name,
+                cache_dir=self.cfg.cache_dir,
+                data_files=data_files,
+                delimeter=self.cfg.history_delimeter,
+            )
+            # except: # not a customised dataset
+            #     return load_dataset_builder(
+            #         path=self.cfg.dataset_name,
+            #         name=self.cfg.dataset_config_name,
+            #         cache_dir=self.cfg.cache_dir,
+            #         data_files=data_files,
+            #     )
         
     @property
     def source_target_column_names(self) -> Tuple[str, str]:

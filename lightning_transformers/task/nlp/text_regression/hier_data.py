@@ -21,7 +21,6 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerBase
 from transformers.data.data_collator import DataCollatorWithPadding
 
-from lightning_transformers.core.utils import load_my_dataset
 from lightning_transformers.task.nlp.text_regression.data import TextRegressionDataModule, TextRegressionMultiDataModule
 
 

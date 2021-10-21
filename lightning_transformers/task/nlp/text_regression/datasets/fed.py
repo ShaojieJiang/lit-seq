@@ -104,49 +104,5 @@ class FED(dataset_base.DatasetBase):
                 dialogs.append(dialog)
         
         # yield examples
-        for dialog_id, dialog in enumerate(dialogs):
-            for turn_id, (_, engaging) in enumerate(dialog):
-                if engaging is None:
-                    continue
-
-                norm1 = engaging
-
-                history = [turn[0] for turn in dialog[:turn_id + 1]]
-                if self.history_size > 0:
-                    history_to_keep = history[-self.history_size:]
-                else:
-                    history_to_keep = history
-                
-                # history_to_keep = self._pad_random_end(history_to_keep, dialogs, dialog_id)
-                history_to_keep.reverse()
-                # while len(history_to_keep) < self.history_size:
-                #     history_to_keep.append('') # pad empty turns
-                
-                if self.hierarchical:
-                    text = history_to_keep
-                else:
-                    text = self.history_delimeter.join(history_to_keep)
-
-                yield f'{dialog_id}-{turn_id}', {
-                    "text": text,
-                    "label": norm1,
-                    "dialog_id": dialog_id,
-                    "turn_id": turn_id,
-                }
-
-    def _pad_random_end(self, history, dialogs, dialog_id):
-        turns_needed = self.history_size - len(history)
-        if turns_needed <= 0:
-            return history # no padding needed
-
-        rand_dialog_id = None
-        while True:
-            rand_dialog_id = random.randrange(len(dialogs))
-            if rand_dialog_id == dialog_id or len(dialogs[rand_dialog_id]) < turns_needed:
-                continue
-            break
-        # found rand_dialog_id
-        pads = [turn[0] for turn in dialogs[rand_dialog_id][-turns_needed:]]
-        history = pads + history
-
-        return history
+        return self._common_generate_examples(dialogs)
+        

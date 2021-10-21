@@ -82,25 +82,25 @@ class TextRegressionDataModule(HFDataModule):
         data_files = data_files if data_files else None
         if self.cfg.dataset_name is not None:
             # Download and load the Huggingface dataset.
-            try:
-                dataset_module = import_module(f'..datasets.{self.cfg.dataset_name}', self.__module__)
-                return load_my_dataset(
-                    dataset_module,
-                    name=self.cfg.dataset_config_name,
-                    cache_dir=self.cfg.cache_dir,
-                    data_files=data_files,
-                    history_delimeter=self.cfg.history_delimeter,
-                    history_size=self.cfg.history_size,
-                    script_version=f'histsz_{self.cfg.history_size}',
-                    hierarchical=self.cfg.hierarchical,
-                )
-            except: # not a customised dataset
-                return load_dataset(
-                    path=self.cfg.dataset_name,
-                    name=self.cfg.dataset_config_name,
-                    cache_dir=self.cfg.cache_dir,
-                    data_files=data_files,
-                )
+            # try:
+            dataset_module = import_module(f'..datasets.{self.cfg.dataset_name}', self.__module__)
+            return load_my_dataset(
+                dataset_module,
+                name=self.cfg.dataset_config_name,
+                cache_dir=self.cfg.cache_dir,
+                data_files=data_files,
+                history_delimeter=self.cfg.history_delimeter,
+                history_size=self.cfg.history_size,
+                script_version=f'histsz_{self.cfg.history_size}',
+                hierarchical=self.cfg.hierarchical,
+            )
+            # except: # not a customised dataset
+            #     return load_dataset(
+            #         path=self.cfg.dataset_name,
+            #         name=self.cfg.dataset_config_name,
+            #         cache_dir=self.cfg.cache_dir,
+            #         data_files=data_files,
+            #     )
     
     @property
     def collate_fn(self) -> Optional[Callable]:
@@ -125,30 +125,30 @@ class TextRegressionMultiDataModule(TextRegressionDataModule):
         data_files = data_files if data_files else None
         if self.cfg.dataset_name == 'multi':
             # Download and load the Huggingface dataset.
-            try:
-                dataset_names = ['my_daily_dialog', 'my_personachat', 'my_empathetic_dialogues', 'my_wizard_of_wikipedia', 'fed']
-                datasets = {}
-                for dataset_name in dataset_names:
-                    dataset_module = import_module(f'..datasets.{dataset_name}', self.__module__)
-                    dataset = load_my_dataset(
-                        dataset_module,
-                        name=self.cfg.dataset_config_name,
-                        cache_dir=self.cfg.cache_dir,
-                        data_files=data_files,
-                        history_delimeter=self.cfg.history_delimeter,
-                        history_size=self.cfg.history_size,
-                        script_version=f'histsz_{self.cfg.history_size}',
-                        hierarchical=self.cfg.hierarchical,
-                    )
-                    datasets[dataset_name] = dataset
-                return datasets
-            except: # not a customised dataset
-                return load_dataset(
-                    path=self.cfg.dataset_name,
+            # try:
+            dataset_names = ['my_daily_dialog', 'my_personachat', 'my_empathetic_dialogues', 'my_wizard_of_wikipedia', 'fed']
+            datasets = {}
+            for dataset_name in dataset_names:
+                dataset_module = import_module(f'..datasets.{dataset_name}', self.__module__)
+                dataset = load_my_dataset(
+                    dataset_module,
                     name=self.cfg.dataset_config_name,
                     cache_dir=self.cfg.cache_dir,
                     data_files=data_files,
+                    history_delimeter=self.cfg.history_delimeter,
+                    history_size=self.cfg.history_size,
+                    script_version=f'histsz_{self.cfg.history_size}',
+                    hierarchical=self.cfg.hierarchical,
                 )
+                datasets[dataset_name] = dataset
+            return datasets
+            # except: # not a customised dataset
+            #     return load_dataset(
+            #         path=self.cfg.dataset_name,
+            #         name=self.cfg.dataset_config_name,
+            #         cache_dir=self.cfg.cache_dir,
+            #         data_files=data_files,
+            #     )
     
     def setup(self, stage: Optional[str] = None):
         datasets = self.load_dataset()
