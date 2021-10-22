@@ -30,17 +30,16 @@ class TextRegressionTransformer(HFTransformer):
     Args:
         *args: :class:`lightning_transformers.core.nlp.HFTransformer` arguments.
         downstream_model_type: Downstream HuggingFace AutoModel to load.
-            (default ``transformers.AutoModelForSequenceClassification``)
+            (default ``transformers.BertModel``)
         **kwargs: :class:`lightning_transformers.core.nlp.HFTransformer` arguments.
     """
 
     def __init__(
-        self, *args, downstream_model_type: str = "transformers.AutoModelForSequenceClassification", **kwargs
+        self, *args, downstream_model_type: str = "transformers.BertModel", **kwargs
     ) -> None:
         super().__init__(downstream_model_type, *args, **kwargs)
         self.criterion = torch.nn.MSELoss()
-        if self.cfg.pooling_method != 'cls':
-            self.linear = torch.nn.Linear(self.model.config.hidden_size, 1)
+        self.linear = torch.nn.Linear(self.model.config.hidden_size, 1)
         # self.metrics = {}
 
     def common_step(self, batch: Any, return_scores=False) -> torch.Tensor:
@@ -49,7 +48,7 @@ class TextRegressionTransformer(HFTransformer):
         outputs = self.model(**inputs)
         # pooling: mean/max/min/cls
         if self.cfg.pooling_method == 'cls':
-            logits = outputs.logits.squeeze(-1)
+            pooled = outputs.pooler_output
         else:
             # apply attention mask
             masked = outputs.last_hidden_state * inputs['attention_mask'].unsqueeze(-1) # bsz * seq_len * hidden_sz
@@ -59,7 +58,7 @@ class TextRegressionTransformer(HFTransformer):
                 pooled = masked.max(dim=1)[0]
             elif self.cfg.pooling_method == 'min':
                 pooled = masked.min(dim=1)[0]
-            logits = self.linear(pooled).squeeze(-1)
+        logits = self.linear(pooled).squeeze(-1)
         scores_relu1 = logits.clamp(0, 1)
         # Avg baseline
         # scores_relu10 = (7.84 - batch['turn_id']).clamp(min=0.0) / 0.784
@@ -80,7 +79,7 @@ class TextRegressionTransformer(HFTransformer):
 
     def validation_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         val_dataloader = self.val_dataloader()
-        if isinstance(val_dataloader, list) and dataloader_idx == len(val_dataloader) - 1:# only run common_eval for fed dataset
+        if isinstance(val_dataloader, list) and dataloader_idx == len(val_dataloader) - 1:# only run common_eval for last dataset
             return self.common_step_return_scores(batch, stage='val')
         else:
             loss = self.common_step(batch)
@@ -88,10 +87,10 @@ class TextRegressionTransformer(HFTransformer):
     
     def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
         val_daterloader = self.val_dataloader()
-        if isinstance(val_daterloader, list) and len(val_daterloader) > 1: # the last dataloader is for FED
+        if isinstance(val_daterloader, list) and len(val_daterloader) > 1: # the last dataloader is for correlations
             pearson, spearman = self.eval_correlations(outputs[-1])
-            self.log("fed_pearson", pearson[0])
-            self.log("fed_spearman", spearman[0])
+            self.log("pearson", pearson[0])
+            self.log("spearman", spearman[0])
     
     def common_step_return_scores(self, batch, stage='val'):
         loss, scores = self.common_step(batch, return_scores=True)

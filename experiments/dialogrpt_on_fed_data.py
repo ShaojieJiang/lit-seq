@@ -7,11 +7,9 @@ import torch
 import tqdm
 from scipy.stats.mstats_basic import pearsonr
 from scipy.stats.stats import spearmanr
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from experiments.dialog_rpt_scorer import DialogRPTScorer
 from lightning_transformers.core.utils import load_my_dataset
-
 
 # Evaluate
 # conversation = "<|endoftext|> Hi! <|endoftext|> Hello, how is your day? <|endoftext|> It's good. It's raining a bit, but I am enjoying a good book. How about you? <|endoftext|> It's good, I just got back from walking my dog What book did you read?"
@@ -49,7 +47,13 @@ print(f'Pearson correlation: {pearson[0]}, p-val: {pearson[1]}')
 print(f'Spearman correlation: {spearman[0]}, p-val: {spearman[1]}')
 
 # other datasets
-from lightning_transformers.task.nlp.text_regression.datasets import my_daily_dialog, my_personachat, my_blended_skill_talk, my_wizard_of_wikipedia, my_empathetic_dialogues
+from lightning_transformers.task.nlp.text_regression.datasets import (
+    my_blended_skill_talk,
+    my_daily_dialog,
+    my_empathetic_dialogues,
+    my_personachat,
+    my_wizard_of_wikipedia,
+)
 
 for module in [my_daily_dialog, my_personachat, my_blended_skill_talk, my_wizard_of_wikipedia, my_empathetic_dialogues]:
     model_scores = []

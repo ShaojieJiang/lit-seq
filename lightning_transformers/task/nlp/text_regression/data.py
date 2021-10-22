@@ -126,7 +126,8 @@ class TextRegressionMultiDataModule(TextRegressionDataModule):
         if self.cfg.dataset_name == 'multi':
             # Download and load the Huggingface dataset.
             # try:
-            dataset_names = ['my_daily_dialog', 'my_personachat', 'my_empathetic_dialogues', 'my_wizard_of_wikipedia', 'fed']
+            dataset_names = self.cfg.dataset_components.split('|')
+            assert self.cfg.reserved_dataset in dataset_names
             datasets = {}
             for dataset_name in dataset_names:
                 dataset_module = import_module(f'..datasets.{dataset_name}', self.__module__)
@@ -159,7 +160,7 @@ class TextRegressionMultiDataModule(TextRegressionDataModule):
     def train_dataloader(self) -> DataLoader:
         train_loaders = []
         for name, dataset in self.ds.items():
-            if name == 'fed':
+            if name == self.cfg.reserved_dataset:
                 continue
             dataloader = DataLoader(
                 dataset["train"],
@@ -181,17 +182,17 @@ class TextRegressionMultiDataModule(TextRegressionDataModule):
                 collate_fn=self.collate_fn,
                 pin_memory=True,
             )
-            if name == 'fed':
-                fed_loader = dataloader
+            if name == self.cfg.reserved_dataset:
+                reserved_loader = dataloader
                 continue
             val_loaders.append(dataloader)
-        val_loaders.append(fed_loader) # add fed to the last
+        val_loaders.append(reserved_loader) # add reserved to the last
         return val_loaders
 
     def test_dataloader(self) -> Optional[DataLoader]:
         test_loaders = []
         for name, dataset in self.ds.items():
-            if name == 'fed':
+            if name == self.cfg.reserved_dataset:
                 continue
             if "test" in dataset:
                 dataloader = DataLoader(

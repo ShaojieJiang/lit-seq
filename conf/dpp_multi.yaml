@@ -2,8 +2,19 @@ defaults: # loads default configs
   - dpp
   - override dataset: nlp/text_regression/multi
 
+dataset:
+  cfg:
+    dataset_components: my_daily_dialog|my_personachat|my_empathetic_dialogues|my_wizard_of_wikipedia|daily_dialog_engaging|fed
+    reserved_dataset: fed
+
+task:
+  cfg:
+    task_name: text_regression_${task.cfg.pooling_method}_pooling
+
 training:
   run_test_after_fit: False
 
 trainer:
   limit_val_batches: 150 # maximum batches for each dataloader, enough for FED
+  num_sanity_val_steps: 19 # full check on FED
+  default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}_${dataset.cfg.reserved_dataset}
