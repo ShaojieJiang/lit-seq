@@ -86,8 +86,8 @@ class TextRegressionTransformer(HFTransformer):
             self.log("val_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True, add_dataloader_idx=False)
     
     def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
-        val_daterloader = self.val_dataloader()
-        if isinstance(val_daterloader, list) and len(val_daterloader) > 1: # the last dataloader is for correlations
+        val_dataloader = self.val_dataloader()
+        if isinstance(val_dataloader, list) and len(val_dataloader) > 1: # the last dataloader is for correlations
             pearson, spearman = self.eval_correlations(outputs[-1])
             self.log("pearson", pearson[0])
             self.log("spearman", spearman[0])

@@ -127,7 +127,7 @@ class TextRegressionMultiDataModule(TextRegressionDataModule):
             # Download and load the Huggingface dataset.
             # try:
             dataset_names = self.cfg.dataset_components.split('|')
-            assert self.cfg.reserved_dataset in dataset_names
+            assert self.cfg.reserved_dataset in dataset_names or not self.cfg.reserved_dataset
             datasets = {}
             for dataset_name in dataset_names:
                 dataset_module = import_module(f'..datasets.{dataset_name}', self.__module__)
@@ -182,7 +182,7 @@ class TextRegressionMultiDataModule(TextRegressionDataModule):
                 collate_fn=self.collate_fn,
                 pin_memory=True,
             )
-            if name == self.cfg.reserved_dataset:
+            if name == (self.cfg.reserved_dataset if self.cfg.reserved_dataset else 'fed'):
                 reserved_loader = dataloader
                 continue
             val_loaders.append(dataloader)
