@@ -4,7 +4,7 @@ defaults: # loads default configs
 
 dataset:
   cfg:
-    dataset_components: my_daily_dialog|my_personachat|my_empathetic_dialogues|my_wizard_of_wikipedia|daily_dialog_engaging|fed
+    dataset_components: my_daily_dialog|my_personachat|my_empathetic_dialogues|my_wizard_of_wikipedia|fed #daily_dialog_engaging
     reserved_dataset: fed
 
 task:
@@ -17,4 +17,4 @@ training:
 trainer:
   limit_val_batches: 150 # maximum batches for each dataloader, enough for FED
   num_sanity_val_steps: 19 # full check on FED
-  default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}_${dataset.cfg.reserved_dataset}
+  default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}_sigmoid_seed_${seed}

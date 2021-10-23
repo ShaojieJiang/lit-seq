@@ -17,6 +17,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import LightningDataModule
 from pytorch_lightning.utilities.distributed import rank_zero_info
+from pytorch_lightning.utilities.seed import seed_everything
 
 from lightning_transformers.core import TaskTransformer, TransformerDataModule
 from lightning_transformers.core.config import TaskConfig, TrainerConfig, TransformerDataConfig
@@ -65,6 +66,7 @@ def run(
 def main(cfg: DictConfig) -> None:
     validate_resume_path(cfg)
     rank_zero_info(OmegaConf.to_yaml(cfg))
+    seed_everything(cfg.seed, workers=True)
     instantiator = HydraInstantiator()
     logger = instantiator.logger(cfg)
     run(

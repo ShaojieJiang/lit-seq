@@ -7,10 +7,6 @@ defaults: # loads default configs
   - hydra: output/custom
   - override dataset: nlp/text_regression/my_daily_dialog
 
-experiment_name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
-log: True
-ignore_warnings: True # todo: check warnings before release
-
 backbone:
   pretrained_model_name_or_path: bert-base-uncased
 
@@ -40,3 +36,8 @@ training:
 optimizer:
   momentum: 0
   weight_decay: 0
+
+experiment_name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+log: True
+ignore_warnings: True # todo: check warnings before release
+seed: 33
