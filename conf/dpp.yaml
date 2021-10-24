@@ -42,3 +42,4 @@ experiment_name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
 log: True
 ignore_warnings: True # todo: check warnings before release
 seed: 33
+stage: train # choose from train, test, (predict, interact, to be added)
