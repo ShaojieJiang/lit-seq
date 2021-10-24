@@ -20,6 +20,7 @@ task:
   cfg:
     pooling_method: cls
     task_name: text_regression_${task.cfg.pooling_method}_pooling
+    activation: relu1
 
 trainer:
   gpus: 1

@@ -59,12 +59,15 @@ class TextRegressionTransformer(HFTransformer):
             elif self.cfg.pooling_method == 'min':
                 pooled = masked.min(dim=1)[0]
         logits = self.linear(pooled).squeeze(-1)
-        scores_relu1 = logits.clamp(0, 1)
+        if self.cfg.activation == 'relu1':
+            scores = logits.clamp(0, 1)
+        elif self.cfg.activation == 'sigmoid':
+            scores = torch.sigmoid(logits)
         # Avg baseline
         # scores_relu10 = (7.84 - batch['turn_id']).clamp(min=0.0) / 0.784
-        loss = 100 * self.criterion(scores_relu1, batch['labels']) # * 100 should be the same as norm10
+        loss = 100 * self.criterion(scores, batch['labels']) # * 100 should be the same as norm10
         if return_scores:
-            return loss, scores_relu1
+            return loss, scores
 
         return loss
 
