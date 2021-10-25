@@ -9,7 +9,7 @@ dataset:
 
 task:
   cfg:
-    task_name: text_regression_${task.cfg.pooling_method}_pooling
+    task_name: text_regression
 
 training:
   run_test_after_fit: False
@@ -17,4 +17,5 @@ training:
 trainer:
   limit_val_batches: 150 # maximum batches for each dataloader, enough for FED
   num_sanity_val_steps: 19 # full check on FED
-  default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}_${task.cfg.activation}_seed_${seed}_lr_${training.lr}_dd_engaging
+  default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}/${experiment_name}
+  # default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}_${task.cfg.activation}_seed_${seed}_lr_${training.lr}_dd_engaging

@@ -29,5 +29,4 @@ training:
   batch_size: 10
 
 optimizer:
-  momentum: 0
   weight_decay: 0

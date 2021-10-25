@@ -4,6 +4,7 @@ defaults: # loads default configs
   - scheduler: reduce_lr_on_plateau
   - training: default
   - trainer: default
+  - trainer/logger: wandb
   - hydra: output/custom
   - override dataset: nlp/text_regression/my_daily_dialog
 
@@ -35,10 +36,9 @@ training:
   batch_size: 20
 
 optimizer:
-  momentum: 0
   weight_decay: 0
 
-experiment_name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+experiment_name: ${now:%Y-%m-%d}_${now:%H-%M-%S-%f}
 log: True
 ignore_warnings: True # todo: check warnings before release
 seed: 33

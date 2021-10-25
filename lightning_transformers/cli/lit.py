@@ -75,6 +75,7 @@ def run(
 def main(cfg: DictConfig) -> None:
     validate_resume_path(cfg)
     rank_zero_info(OmegaConf.to_yaml(cfg))
+    print(f"Experiment name: {cfg.experiment_name}")
     seed_everything(cfg.seed, workers=True)
     instantiator = HydraInstantiator()
     logger = instantiator.logger(cfg)
