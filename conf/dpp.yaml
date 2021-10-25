@@ -27,7 +27,7 @@ trainer:
   gpus: 1
   val_check_interval: 1000
   max_steps: 50000
-  max_epochs: null
+  max_epochs: 10
   gradient_clip_val: 0.1
   resume_from_checkpoint: ${trainer.default_root_dir}/last.ckpt
 
