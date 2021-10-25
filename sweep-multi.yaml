@@ -1,0 +1,38 @@
+program: lit.py
+method: bayes
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - "--config-name"
+  - "dpp_multi"
+  - ${args_no_hyphens}
+metric:
+  goal: maximize
+  name: pearson
+parameters:
+  dropout:
+    values: [0.1, 0.15, 0.2, 0.25, 0.3, 0.35]
+  training.lr:
+    values: [5e-1, 5e-2, 5e-3, 5e-4, 5e-5, 5e-6, 5e-7, 5e-8, 5e-9, 5e-10]
+  optimizer.weight_decay:
+    values: [0, 1e-2, 1e-4, 1e-5, 1e-5, 1e-6, 1e-7]
+  optimizer.momentum:
+    values: [0, 0.3, 0.6, 0.9]
+  task.cfg.activation:
+    values: [relu1, sigmoid]
+  seed:
+    values: [11, 13, 17, 19, 23, 29, 31, 33]
+  task.cfg.pooling_method:
+    values: [mean, cls, max, min]
+  scheduler:
+    values:
+      - reduce_lr_on_plateau
+      - cosine_schedule_with_warmup
+      - cosine_with_hard_restarts_schedule_with_warmup
+    distribution: categorical
+  # optimizer/_target_:
+  #   values:
+  #     - torch.optim.SGD
+  #   distribution: categorical
+  
