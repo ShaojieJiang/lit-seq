@@ -23,10 +23,10 @@ from lightning_transformers.task.nlp.text_regression.datasets import (
     my_empathetic_dialogues,
     my_personachat,
     my_wizard_of_wikipedia,
+    personachat_engaging,
 )
 
-for module in [my_daily_dialog, my_personachat, my_blended_skill_talk, 
-    my_wizard_of_wikipedia, my_empathetic_dialogues, daily_dialog_engaging]:
+for module in [fed, daily_dialog_engaging, personachat_engaging]:
     model_scores = []
     human_scores = []
     hist_sz = -1

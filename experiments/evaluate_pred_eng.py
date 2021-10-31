@@ -1,6 +1,7 @@
 import json
-from math import ceil
 import os
+from math import ceil
+
 import numpy as np
 import requests
 import torch
@@ -12,7 +13,6 @@ from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 from experiments.PredictiveEngagement.pytorch_src.engagement_classifier import BiLSTM, Engagement_cls
 from lightning_transformers.core.utils import load_my_dataset
-
 
 # Evaluate
 # conversation = "<|endoftext|> Hi! <|endoftext|> Hello, how is your day? <|endoftext|> It's good. It's raining a bit, but I am enjoying a good book. How about you? <|endoftext|> It's good, I just got back from walking my dog What book did you read?"
@@ -39,8 +39,8 @@ bert = BertModel.from_pretrained(bert_name).cuda()
 def score(context, response):
     context_input = tokenizer(list(context), padding=True, truncation=True, return_tensors='pt').to(bert.device)
     response_input = tokenizer(list(response), padding=True, truncation=True, return_tensors='pt').to(bert.device)
-    context_emb = bert(**context_input).last_hidden_state.mean(dim=1).squeeze().cpu().numpy()
-    response_emb = bert(**response_input).last_hidden_state.mean(dim=1).squeeze().cpu().numpy()
+    context_emb = bert(**context_input).last_hidden_state.mean(dim=1).cpu().numpy()
+    response_emb = bert(**response_input).last_hidden_state.mean(dim=1).cpu().numpy()
 
     context_emb_dict = {key: val for key, val in zip(context, context_emb)}
     response_emb_dict = {key: val for key, val in zip(response, response_emb)}
@@ -50,30 +50,39 @@ def score(context, response):
     pred_eng = torch.nn.functional.softmax(model_output, dim=1)[:, 1]
     return pred_eng.cpu().numpy()
 
-model_scores = []
-human_scores = []
-for row in tqdm.tqdm(data):
-    if 'response' in row: # this is a turn annotation, add it to dict
-        context = row['context'].replace('User: ', '').replace('System: ', '')
-        context = context.split('\n')[-1]
-        response = row['response'].replace('System: ', '')
-        engaging = row['annotations']['Engaging']
-        avg_engaging = np.mean(engaging)
-        human_scores.append(avg_engaging)
+# model_scores = []
+# human_scores = []
+# for row in tqdm.tqdm(data):
+#     if 'response' in row: # this is a turn annotation, add it to dict
+#         context = row['context'].replace('User: ', '').replace('System: ', '')
+#         context = context.split('\n')[-1]
+#         response = row['response'].replace('System: ', '')
+#         engaging = row['annotations']['Engaging']
+#         avg_engaging = np.mean(engaging)
+#         human_scores.append(avg_engaging)
         
-        engaging = score(context, response)
-        model_scores.append(engaging)
+#         engaging = score([context], [response])
+#         model_scores.append(engaging)
 
-spearman = spearmanr(model_scores, human_scores)
-pearson = pearsonr(model_scores, human_scores)
+# spearman = spearmanr(model_scores, human_scores)
+# pearson = pearsonr(model_scores, human_scores)
 
-print(f'Pearson correlation: {pearson[0]}, p-val: {pearson[1]}')
-print(f'Spearman correlation: {spearman[0]}, p-val: {spearman[1]}')
+# print(f'Pearson correlation: {pearson[0]}, p-val: {pearson[1]}')
+# print(f'Spearman correlation: {spearman[0]}, p-val: {spearman[1]}')
 
 # other datasets
-from lightning_transformers.task.nlp.text_regression.datasets import my_daily_dialog, my_personachat, my_blended_skill_talk, my_wizard_of_wikipedia, my_empathetic_dialogues
+from lightning_transformers.task.nlp.text_regression.datasets import (
+    my_blended_skill_talk,
+    my_daily_dialog,
+    my_empathetic_dialogues,
+    my_personachat,
+    my_wizard_of_wikipedia,
+    daily_dialog_engaging,
+    personachat_engaging,
+    fed,
+)
 
-for module in [my_daily_dialog, my_personachat, my_blended_skill_talk, my_wizard_of_wikipedia, my_empathetic_dialogues]:
+for module in [personachat_engaging]:
     model_scores = []
     human_scores = []
     hist_sz = 2

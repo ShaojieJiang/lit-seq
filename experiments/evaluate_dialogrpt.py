@@ -24,28 +24,6 @@ def score(texts):
     score = model.score_text(texts)
     return score
 
-data = json.loads(r.content)
-model_scores = []
-human_scores = []
-for row in tqdm.tqdm(data):
-    if 'response' in row: # this is a turn annotation, add it to dict
-        text = f"{row['context']}\n{row['response']}".replace('User: ', '').replace('System: ', '')
-        history = text.split('\n')[-2:]
-        text = ' <|end_of_text|> '.join(history)
-        # text = text.replace('\n', ' <|endoftext|> ') # using full history results in poor correlations
-        engaging = row['annotations']['Engaging']
-        avg_engaging = np.mean(engaging)
-        human_scores.append(avg_engaging)
-        
-        engaging = score(text)
-        model_scores.append(engaging)
-
-spearman = spearmanr(model_scores, human_scores)
-pearson = pearsonr(model_scores, human_scores)
-
-print(f'Pearson correlation: {pearson[0]}, p-val: {pearson[1]}')
-print(f'Spearman correlation: {spearman[0]}, p-val: {spearman[1]}')
-
 # other datasets
 from lightning_transformers.task.nlp.text_regression.datasets import (
     my_blended_skill_talk,
@@ -53,9 +31,12 @@ from lightning_transformers.task.nlp.text_regression.datasets import (
     my_empathetic_dialogues,
     my_personachat,
     my_wizard_of_wikipedia,
+    daily_dialog_engaging,
+    personachat_engaging,
+    fed
 )
 
-for module in [my_daily_dialog, my_personachat, my_blended_skill_talk, my_wizard_of_wikipedia, my_empathetic_dialogues]:
+for module in [personachat_engaging]:
     model_scores = []
     human_scores = []
     hist_sz = 2

@@ -40,7 +40,9 @@ def score(texts, tokenizer, model):
   labels=input_ids['input_ids']
   with torch.no_grad():
       outputs = model(**input_ids)
-      losses = criterion(outputs.logits.view(-1, 50257), labels.view(-1))
+      logits = outputs.logits[..., :-1, :].contiguous()
+      labels = labels[..., 1:].contiguous()
+      losses = criterion(logits.view(-1, 50257), labels.view(-1))
       losses = losses.view(labels.size(), -1).mean(dim=1)
 
   return losses.cpu().numpy()

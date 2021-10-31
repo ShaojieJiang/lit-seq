@@ -14,10 +14,10 @@ from lightning_transformers.task.nlp.text_regression.datasets import (
     my_empathetic_dialogues,
     my_personachat,
     my_wizard_of_wikipedia,
+    personachat_engaging,
 )
 
-for module in [my_daily_dialog, my_personachat, my_blended_skill_talk, my_wizard_of_wikipedia, 
-    daily_dialog_engaging, my_empathetic_dialogues, fed]:
+for module in [personachat_engaging]:
     model_scores = []
     human_scores = []
     hist_sz = 2
@@ -35,5 +35,5 @@ for module in [my_daily_dialog, my_personachat, my_blended_skill_talk, my_wizard
         text = data['text'].split(' [SEP] ')
         if len(text) < 2:
             continue
-        tgt_file.write(json.dumps({'context': text[0], 'response': text[1], 'label': data['label']}) + '\n')
+        tgt_file.write(json.dumps({'context': text[0], 'response': text[1], 'label': data['label'], 'dialog_id': data['dialog_id'], 'turn_id': data['turn_id']}) + '\n')
     tgt_file.close()
