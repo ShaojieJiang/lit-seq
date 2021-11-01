@@ -69,7 +69,7 @@ def run(
 
     trainer.fit(model, datamodule=data_module)
     if run_test_after_fit or stage =='test':
-        trainer.test(model, datamodule=data_module)
+        trainer.test(datamodule=data_module)
 
 
 def main(cfg: DictConfig) -> None:
