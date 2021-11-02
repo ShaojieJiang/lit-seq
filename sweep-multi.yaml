@@ -5,7 +5,7 @@ command:
   - ${interpreter}
   - ${program}
   - "--config-name"
-  - "dpp_multi"
+  - "dpp_multi_hist2"
   - ${args_no_hyphens}
 metric:
   goal: maximize
