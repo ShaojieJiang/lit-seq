@@ -27,7 +27,7 @@ class EmpatheticDialogues(dataset_base.DatasetBase):
     """TODO(empathetic_dialogues): Short description of my dataset."""
 
     # TODO(empathetic_dialogues): Set up version.
-    VERSION = datasets.Version("1.0.1") # norm to [0, 1]
+    VERSION = datasets.Version("1.0.2") # norm to [0, 1]
 
     def _info(self):
         # TODO(empathetic_dialogues): Specifies the datasets.DatasetInfo object

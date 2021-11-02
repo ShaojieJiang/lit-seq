@@ -43,7 +43,7 @@ class TextRegressionTransformer(HFTransformer):
         # self.metrics = {}
 
     def common_step(self, batch: Any, return_scores=False) -> torch.Tensor:
-        input_keys = set(batch.keys()) - {'dialog_id', 'turn_id', 'labels'}
+        input_keys = set(batch.keys()) - {'dialog_id', 'turn_id', 'labels', 'sort_key'}
         inputs = {key: batch[key] for key in input_keys}
         outputs = self.model(**inputs)
         # pooling: mean/max/min/cls

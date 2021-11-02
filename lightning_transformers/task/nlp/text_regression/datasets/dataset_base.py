@@ -25,6 +25,7 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                     "label": datasets.Value("float"),
                     "dialog_id": datasets.Value("int32"),
                     "turn_id": datasets.Value("int32"),
+                    "sort_key": datasets.Value("int32"),
                 }
             )
     
@@ -60,11 +61,23 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                 else:
                     text = self.history_delimeter.join(history_to_keep)
 
+                if len(history_to_keep) > 1 and type(turn) is str: # example w/o history, not for human data
+                    last_turn = history_to_keep[-1]
+                    yield f'{dialog_id}-{turn_id}-{0}', {
+                        "text": last_turn,
+                        "label": norm1,
+                        "dialog_id": dialog_id,
+                        "turn_id": turn_id,
+                        "sort_key": len(last_turn.split()),
+                    }
+
+                # example w/ history
                 yield f'{dialog_id}-{turn_id}', {
                     "text": text,
                     "label": norm1,
                     "dialog_id": dialog_id,
                     "turn_id": turn_id,
+                    "sort_key": len(text.split()),
                 }
 
     def _pad_random_end(self, history, dialogs, dialog_id):

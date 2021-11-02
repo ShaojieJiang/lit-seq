@@ -5,7 +5,6 @@ import json
 
 import datasets
 import numpy as np
-import random
 
 from lightning_transformers.task.nlp.text_regression.datasets import dataset_base
 
