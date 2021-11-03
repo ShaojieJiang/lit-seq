@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import pytorch_lightning as pl
 import torch
+from torch.optim.optimizer import Optimizer
 import transformers
 from pytorch_lightning.utilities import rank_zero_info, rank_zero_warn
 
@@ -55,6 +56,12 @@ class LitTransformer(pl.LightningModule):
                 "name": None,
             },
         }
+    
+    def optimizer_step(self, epoch: int = None, batch_idx: int = None, optimizer: Optimizer = None, optimizer_idx: int = None, optimizer_closure: Optional[Callable] = None, on_tpu: bool = None, using_native_amp: bool = None, using_lbfgs: bool = None) -> None:
+        scheduler_opt = self.trainer.lr_schedulers[0]
+        if not scheduler_opt['reduce_on_plateau'] and self.global_step % scheduler_opt['frequency'] != 0:
+            self.scheduler.step()
+        return super().optimizer_step(epoch=epoch, batch_idx=batch_idx, optimizer=optimizer, optimizer_idx=optimizer_idx, optimizer_closure=optimizer_closure, on_tpu=on_tpu, using_native_amp=using_native_amp, using_lbfgs=using_lbfgs)
 
     @property
     def num_training_steps(self) -> int:
