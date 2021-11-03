@@ -1,15 +1,16 @@
 defaults: # loads default configs
-  - dpp_hier
+  - dpp_multi_hist2
 
 dataset:
   _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionMultiDataModule
   cfg:
-    dataset_name: multi
-    # history_size: 4
+    hierarchical: True
 
 training:
   run_test_after_fit: False
 
-trainer:
-  limit_val_batches: 150 # maximum batches for each dataloader, enough for FED
-  num_sanity_val_steps: 19 # full check on FED
+task:
+  _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionTransformer
+  cfg:
+    task_name: text_regression_hier_hist
+    pooling_method: first

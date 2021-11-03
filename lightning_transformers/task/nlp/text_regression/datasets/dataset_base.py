@@ -25,7 +25,7 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                     "label": datasets.Value("float"),
                     "dialog_id": datasets.Value("int32"),
                     "turn_id": datasets.Value("int32"),
-                    "sort_key": datasets.Value("int32"),
+                    # "sort_key": datasets.Value("int32"),
                 }
             )
     
@@ -52,7 +52,7 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                     history_to_keep = history
                     
                 # history_to_keep = self._pad_random_end(history_to_keep, dialogs, dialog_id)
-                # history_to_keep.reverse()
+                history_to_keep.reverse()
                 # while len(history_to_keep) < self.history_size:
                 #     history_to_keep.append('') # pad empty turns
                     
@@ -62,14 +62,23 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                     text = self.history_delimeter.join(history_to_keep)
 
                 if len(history_to_keep) > 1 and type(turn) is str: # example w/o history, not for human data
-                    last_turn = history_to_keep[-1]
-                    yield f'{dialog_id}-{turn_id}-{0}', {
-                        "text": last_turn,
-                        "label": norm1,
-                        "dialog_id": dialog_id,
-                        "turn_id": turn_id,
-                        "sort_key": len(last_turn.split()),
-                    }
+                    last_turn = history_to_keep[0]
+                    if self.hierarchical:
+                        yield f'{dialog_id}-{turn_id}-{0}', {
+                            "text": [last_turn],
+                            "label": norm1,
+                            "dialog_id": dialog_id,
+                            "turn_id": turn_id,
+                            # "sort_key": len(last_turn.split()),
+                        }
+                    else:
+                        yield f'{dialog_id}-{turn_id}-{0}', {
+                            "text": last_turn,
+                            "label": norm1,
+                            "dialog_id": dialog_id,
+                            "turn_id": turn_id,
+                            # "sort_key": len(last_turn.split()),
+                        }
 
                 # example w/ history
                 yield f'{dialog_id}-{turn_id}', {
@@ -77,7 +86,7 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                     "label": norm1,
                     "dialog_id": dialog_id,
                     "turn_id": turn_id,
-                    "sort_key": len(text.split()),
+                    # "sort_key": len(text.split()),
                 }
 
     def _pad_random_end(self, history, dialogs, dialog_id):

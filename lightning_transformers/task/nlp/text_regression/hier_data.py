@@ -28,7 +28,7 @@ class HierarchicalDataMixin:
     """Defines the ``LightningDataModule`` for Text Regression Datasets."""
 
     def process_data(self, dataset: Dataset, stage: Optional[str] = None) -> Dataset:
-        dataset = dataset.sort('turn_id', reverse=True) # should CUDA OOM exist, this allows it to appear earlier
+        # dataset = dataset.sort('turn_id', reverse=True) # should CUDA OOM exist, this allows it to appear earlier
         return super().process_data(dataset, stage)
 
     @staticmethod
