@@ -1,5 +1,6 @@
 defaults: # loads default configs
   - dpp_multi_hist2
+  - override scheduler: constant_lr
 
 dataset:
   _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionMultiDataModule
@@ -7,10 +8,11 @@ dataset:
     hierarchical: True
 
 training:
+  lr: 5e-4
   run_test_after_fit: False
 
 task:
   _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionTransformer
   cfg:
     task_name: text_regression_hier_hist
-    pooling_method: first
+    pooling_method: mean

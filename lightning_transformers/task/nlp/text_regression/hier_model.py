@@ -21,9 +21,9 @@ from lightning_transformers.task.nlp.text_regression.model import TextRegression
 class HierarchicalBert(torch.nn.Module):
     def __init__(self, downstream_model_type: str, backbone: HFBackboneConfig, pooling_method, **model_data_kwargs):
         super().__init__()
-        model_cls: Type["AutoModel"] = get_class(downstream_model_type)
+        # model_cls: Type["AutoModel"] = get_class(downstream_model_type)
         self.turn_encoder = BertModel.from_pretrained(backbone.pretrained_model_name_or_path)
-        self.hier_encoder = model_cls.from_pretrained(backbone.pretrained_model_name_or_path, **model_data_kwargs)
+        # self.hier_encoder = model_cls.from_pretrained(backbone.pretrained_model_name_or_path, **model_data_kwargs)
         self.pooling_method = pooling_method
         self.linear = torch.nn.Linear(self.turn_encoder.config.hidden_size, 1)
 
@@ -49,17 +49,20 @@ class HierarchicalBert(torch.nn.Module):
 
         hier_input = torch.cat(turn_outputs, dim=1)
         dialog_attention_mask = torch.cat(dialog_attention_mask, dim=-1)
-        output = self.hier_encoder(inputs_embeds=hier_input, attention_mask=dialog_attention_mask)
-        if self.pooling_method == 'first':
-            logits = output['pooler_output']
-        else:
-            masked = output['last_hidden_state'] * dialog_attention_mask.unsqueeze(-1)
-            if self.pooling_method == 'mean':
-                logits = masked.mean(dim=1)
-            elif self.pooling_method == 'max':
-                logits = masked.max(dim=1)[0]
-            elif self.pooling_method == 'min':
-                logits = masked.min(dim=1)[0]
+        masked = hier_input * dialog_attention_mask.unsqueeze(-1)
+        logits = masked.mean(dim=1)
+
+        # output = self.hier_encoder(inputs_embeds=hier_input, attention_mask=dialog_attention_mask)
+        # if self.pooling_method == 'first':
+        #     logits = output['pooler_output']
+        # else:
+        #     masked = output['last_hidden_state'] * dialog_attention_mask.unsqueeze(-1)
+        #     if self.pooling_method == 'mean':
+        #         logits = masked.mean(dim=1)
+        #     elif self.pooling_method == 'max':
+        #         logits = masked.max(dim=1)[0]
+        #     elif self.pooling_method == 'min':
+        #         logits = masked.min(dim=1)[0]
 
         scores = self.linear(logits)
 
