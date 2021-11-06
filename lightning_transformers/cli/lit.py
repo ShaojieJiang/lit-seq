@@ -75,11 +75,12 @@ def run(
 def main(cfg: DictConfig) -> None:
     validate_resume_path(cfg)
     rank_zero_info(OmegaConf.to_yaml(cfg))
-    seed_everything(cfg.seed, workers=True)
+    if cfg.seed:
+        seed_everything(cfg.seed, workers=True)
     instantiator = HydraInstantiator()
     logger = instantiator.logger(cfg)
-    logger.log_hyperparams(cfg)
-    print(f"Experiment name: {cfg.experiment_name}")
+    if logger:
+        logger.log_hyperparams(cfg)
     run(
         cfg.stage,
         instantiator,

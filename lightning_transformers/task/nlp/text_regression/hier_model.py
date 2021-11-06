@@ -95,6 +95,8 @@ class HierarchicalTextRegressionTransformer(TextRegressionTransformer):
         logits = self.model(**batch)
         scores_relu1 = logits.clamp(0, 1)
         loss = 100 * self.criterion(scores_relu1, batch['labels'])
+        # Avg baseline
+        # scores_relu1 = (7.84 - batch['turn_id']).clamp(min=0.0) / 7.84
         
         if return_scores:
             return loss, scores_relu1
