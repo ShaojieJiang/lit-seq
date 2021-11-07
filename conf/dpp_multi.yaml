@@ -4,7 +4,7 @@ defaults: # loads default configs
 
 dataset:
   cfg:
-    dataset_components: my_daily_dialog|my_personachat|my_empathetic_dialogues|my_wizard_of_wikipedia|fed
+    dataset_components: my_daily_dialog:my_personachat:my_empathetic_dialogues:my_wizard_of_wikipedia:fed
     reserved_dataset: fed
 
 task:

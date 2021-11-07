@@ -11,4 +11,4 @@ task:
   _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionTransformer
   cfg:
     task_name: text_regression_hier_hist
-    pooling_method: first # first pos, mean, max, min
+    pooling_method: mean # first pos, mean, max, min

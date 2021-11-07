@@ -127,6 +127,14 @@ class TextRegressionTransformer(HFTransformer):
         self.calc_correlations_first_last_n(ordered_dialogs, n=[3, 2, 1])
         # self.get_greetings_farewells(ordered_dialogs)
 
+        # fp = open('./predictions.txt', 'w')
+        # for dialog in ordered_dialogs:
+        #     for turn in dialog:
+        #         fp.write(f'{turn[0]}\tGT: {turn[1]:.2f}\tPred: {turn[2]:.2f}\n')
+        #     fp.write('\n')
+        #     fp.write('============\n\n')
+        # fp.close()
+
         return pearson, spearman
 
     def test_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
@@ -136,8 +144,8 @@ class TextRegressionTransformer(HFTransformer):
         self.eval_correlations(outputs) # no logging or return needed
 
     def get_greetings_farewells(self, ordered_dialogs):
-        GREETING_THRESH = 8.5
-        FAREWELL_THRESH = 1.5
+        GREETING_THRESH = 0
+        FAREWELL_THRESH = 0.15
         greetings_file = open('./greetings.txt', 'w')
         farewells_file = open('./farewells.txt', 'w')
         for dialog in ordered_dialogs:

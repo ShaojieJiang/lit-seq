@@ -16,7 +16,5 @@ task:
   cfg:
     task_name: text_regression_hier_hist
     pooling_method: mean
-    scheduler_monitor: pearson
-    scheduler_mode: max
 
 seed: 11

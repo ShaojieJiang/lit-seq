@@ -126,7 +126,7 @@ class TextRegressionMultiDataModule(TextRegressionDataModule):
         if self.cfg.dataset_name == 'multi':
             # Download and load the Huggingface dataset.
             # try:
-            dataset_names = self.cfg.dataset_components.split('|')
+            dataset_names = self.cfg.dataset_components.split(':')
             assert self.cfg.reserved_dataset in dataset_names or not self.cfg.reserved_dataset
             datasets = {}
             for dataset_name in dataset_names:
