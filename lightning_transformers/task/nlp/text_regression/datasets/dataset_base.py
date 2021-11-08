@@ -61,24 +61,24 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                 else:
                     text = self.history_delimeter.join(history_to_keep)
 
-                if len(history_to_keep) > 1 and type(turn) is str: # example w/o history, not for human data
-                    last_turn = history_to_keep[0]
-                    if self.hierarchical:
-                        yield f'{dialog_id}-{turn_id}-{0}', {
-                            "text": [last_turn],
-                            "label": norm1,
-                            "dialog_id": dialog_id,
-                            "turn_id": turn_id,
-                            # "sort_key": len(last_turn.split()),
-                        }
-                    else:
-                        yield f'{dialog_id}-{turn_id}-{0}', {
-                            "text": last_turn,
-                            "label": norm1,
-                            "dialog_id": dialog_id,
-                            "turn_id": turn_id,
-                            # "sort_key": len(last_turn.split()),
-                        }
+                # if len(history_to_keep) > 1 and type(turn) is str: # example w/o history, not for human data
+                #     last_turn = history_to_keep[0]
+                #     if self.hierarchical:
+                #         yield f'{dialog_id}-{turn_id}-{0}', {
+                #             "text": [last_turn],
+                #             "label": norm1,
+                #             "dialog_id": dialog_id,
+                #             "turn_id": turn_id,
+                #             # "sort_key": len(last_turn.split()),
+                #         }
+                #     else:
+                #         yield f'{dialog_id}-{turn_id}-{0}', {
+                #             "text": last_turn,
+                #             "label": norm1,
+                #             "dialog_id": dialog_id,
+                #             "turn_id": turn_id,
+                #             # "sort_key": len(last_turn.split()),
+                #         }
 
                 # example w/ history
                 yield f'{dialog_id}-{turn_id}', {
