@@ -93,13 +93,16 @@ class HierarchicalTextRegressionTransformer(TextRegressionTransformer):
     
     def common_step(self, batch: Any, return_scores=False) -> torch.Tensor:
         logits = self.model(**batch)
-        scores_relu1 = logits.clamp(0, 1)
-        loss = 100 * self.criterion(scores_relu1, batch['labels'])
+        if self.cfg.activation == 'relu1':
+            scores = logits.clamp(0, 1)
+        elif self.cfg.activation == 'sigmoid':
+            scores = torch.sigmoid(logits)
+        loss = 100 * self.criterion(scores, batch['labels'])
         # Avg baseline
         # scores_relu1 = (7.84 - batch['turn_id']).clamp(min=0.0) / 7.84
         
         if return_scores:
-            return loss, scores_relu1
+            return loss, scores
 
         return loss
     
