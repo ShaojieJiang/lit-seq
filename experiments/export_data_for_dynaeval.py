@@ -35,13 +35,13 @@ for module in [fed, daily_dialog_engaging, personachat_engaging]:
                         module,
                         name=name,
                         split='test',
-                        history_delimeter= ' [SEP] ',
+                        history_delimeter= ' <|endoftext|> ',
                         history_size=hist_sz,
                         script_version=f'histsz_{hist_sz}',
                     )
     tgt_file = open(f'./data/{name}.jsonl', 'w')
     for data in tqdm.tqdm(dataset):
-        text = data['text'].split(' [SEP] ')
+        text = data['text'].split(' <|endoftext|> ')
         speaker = ['A' if i % 2 == 0 else 'B' for i in range(len(text))]
         tgt_file.write(json.dumps({'text': text, 'label': data['label'], 'speaker': speaker}) + '\n')
     tgt_file.close()

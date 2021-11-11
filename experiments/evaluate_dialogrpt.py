@@ -36,7 +36,7 @@ from lightning_transformers.task.nlp.text_regression.datasets import (
     fed
 )
 
-for module in [personachat_engaging]:
+for module in [fed, daily_dialog_engaging]:
     model_scores = []
     human_scores = []
     hist_sz = 2
@@ -45,7 +45,7 @@ for module in [personachat_engaging]:
                         module,
                         name=name,
                         split='test',
-                        history_delimeter= ' <|end_of_text|> ',
+                        history_delimeter= ' <|endoftext|> ',
                         history_size=hist_sz,
                         script_version=f'histsz_{hist_sz}',
                     )

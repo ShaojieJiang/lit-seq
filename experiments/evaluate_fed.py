@@ -31,7 +31,7 @@ from lightning_transformers.task.nlp.text_regression.datasets import (
     fed,
 )
 
-for module in [daily_dialog_engaging]:
+for module in [fed]:
     model_scores = []
     human_scores = []
     hist_sz = -1
