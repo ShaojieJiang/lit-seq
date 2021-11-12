@@ -1,6 +1,7 @@
 defaults: # loads default configs
   - dpp
   - override dataset: nlp/text_regression/multi
+  - override scheduler: constant_schedule_with_warmup
 
 dataset:
   cfg:
@@ -9,9 +10,11 @@ dataset:
 
 task:
   cfg:
-    task_name: text_regression
+    task_name: text_regression_flat_hist
+    pooling_method: mean
 
 training:
+  lr: 5e-5
   run_test_after_fit: False
 
 trainer:
@@ -19,3 +22,5 @@ trainer:
   num_sanity_val_steps: 19 # full check on FED
   default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}_sweep/${experiment_name}
   # default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}_${task.cfg.activation}_seed_${seed}_lr_${training.lr}_dd_engaging
+
+seed: 11

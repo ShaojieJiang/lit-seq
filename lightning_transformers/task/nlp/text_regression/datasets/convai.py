@@ -96,4 +96,3 @@ class ConvAI(dataset_base.DatasetBase):
         
         # yield examples
         return self._common_generate_examples(dialogs)
-        
