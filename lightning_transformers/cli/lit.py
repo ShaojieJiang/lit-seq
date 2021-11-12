@@ -27,7 +27,7 @@ from lightning_transformers.core.utils import set_ignore_warnings, validate_resu
 
 
 def run(
-    stage: str,
+    cfg: DictConfig,
     instantiator: Instantiator,
     ignore_warnings: bool = True,
     run_test_after_fit: bool = True,
@@ -54,12 +54,12 @@ def run(
     data_module.setup("fit")
 
     model: TaskTransformer = instantiator.model(task, model_data_kwargs=getattr(data_module, "model_data_kwargs", None))
-    if stage == 'train':
+    if cfg.stage == 'train':
         trainer = instantiator.trainer(
             trainer,
             logger=logger,
         )
-    elif stage == 'test':
+    elif cfg.stage == 'test':
         trainer = instantiator.trainer(
             trainer,
             logger=logger,
@@ -67,8 +67,11 @@ def run(
             val_check_interval=1.0, # override anything specified in the config files
         )
 
+    # manual load
+    if cfg.fintune_ckpt:
+        model = model.load_from_checkpoint(cfg.fintune_ckpt, optimizer=cfg.task.optimizer)
     trainer.fit(model, datamodule=data_module)
-    if run_test_after_fit or stage =='test':
+    if run_test_after_fit or cfg.stage =='test':
         trainer.test(datamodule=data_module)
 
 
@@ -82,7 +85,7 @@ def main(cfg: DictConfig) -> None:
     if logger:
         logger.log_hyperparams(cfg)
     run(
-        cfg.stage,
+        cfg,
         instantiator,
         ignore_warnings=cfg.get("ignore_warnings"),
         run_test_after_fit=cfg.get("training").get("run_test_after_fit"),
