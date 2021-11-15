@@ -1,7 +1,9 @@
 This repo is for our paper _Training a Turn-level User Engagingness Predictor for Dialogues with Weak Supervision_
 
-This repo is based on [Lighning Transformers](https://github.com/PyTorchLightning/lightning-transformers).
-More details about the changes will come later.
+This repo is based on [Lightning Transformers](https://github.com/PyTorchLightning/lightning-transformers).
+
+## Changes to the original repo
+Coming soon.
 
 
 ## Installation from source
@@ -26,4 +28,4 @@ python lit.py --config-name dpp_hier dataset.cfg.history_size=3 trainer.default_
 
 ## License
 
-Please observe the Apache 2.0 license that is listed in this repository. In addition, the Lightning framework is Patent Pending.
+Please observe the Apache 2.0 license that is listed in this repository.
