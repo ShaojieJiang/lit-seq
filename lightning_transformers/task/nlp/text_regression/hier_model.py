@@ -120,4 +120,3 @@ class HierarchicalTextRegressionTransformer(TextRegressionTransformer):
             'dialog_id': batch['dialog_id'].cpu().tolist(),
             'turn_id': batch['turn_id'].cpu().tolist(),
         }
-        

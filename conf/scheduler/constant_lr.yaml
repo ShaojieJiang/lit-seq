@@ -1,3 +1,0 @@
-_target_: torch.optim.lr_scheduler.ConstantLR
-
-factor: 1.0

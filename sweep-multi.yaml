@@ -19,4 +19,3 @@ parameters:
     values: [11, 33, 97, 357, 508]
   task.cfg.pooling_method:
     values: [mean, cls, max, min]
-  

@@ -89,4 +89,3 @@ class Personachat(dataset_base.DatasetBase):
                 current_dialog.extend([context, response])
 
         return self._common_generate_examples(dialogs)
-        
