@@ -1,12 +1,14 @@
 defaults: # loads default configs
-  - dpp_multi
+  - rdep
 
 dataset:
-  _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionMultiDataModule
+  _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionDataModule
   cfg:
+    history_size: 2
     hierarchical: True
 
 task:
   _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionTransformer
   cfg:
     task_name: text_regression_hier_hist
+    pooling_method: mean # first pos, mean, max, min

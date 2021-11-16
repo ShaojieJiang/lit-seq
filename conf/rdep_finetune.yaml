@@ -1,5 +1,5 @@
 defaults: # loads default configs
-  - dpp_multi_hist2
+  - rdep_multi
   # - override scheduler: constant_lr
 
 dataset:
