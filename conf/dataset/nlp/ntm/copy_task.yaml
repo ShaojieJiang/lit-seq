@@ -1,0 +1,6 @@
+# @package dataset
+defaults:
+  - /dataset/nlp/ntm/default
+
+cfg:
+  dataset_name: copy_task

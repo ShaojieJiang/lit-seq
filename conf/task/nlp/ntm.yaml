@@ -1,0 +1,8 @@
+# @package task
+defaults:
+  - nlp/default
+  - override /dataset@_group_: nlp/ntm/default
+_target_: lightning_transformers.task.nlp.ntm.NTM
+downstream_model_type: transformers.BertModel
+cfg:
+  task_name: text_regression
