@@ -1,0 +1,21 @@
+defaults: # loads default configs
+  - rdep_multi
+  # - override scheduler: constant_lr
+
+dataset:
+  cfg:
+    dataset_components: convai|fed
+    reserved_dataset: fed
+
+task:
+  cfg:
+    task_name: text_regression_flat_hist
+
+trainer:
+  num_sanity_val_steps: 19 # full check on FED
+  val_check_interval: 100
+  max_steps: 55000
+  max_epochs: 1000
+
+training:
+  lr: 5e-4

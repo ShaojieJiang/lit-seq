@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from datasets import ClassLabel, Dataset
 from datasets.load import load_dataset
+from torch.utils.data.dataloader import DataLoader
 from transformers import PreTrainedTokenizerBase
 from transformers.data.data_collator import DataCollatorWithPadding
 
@@ -28,7 +29,7 @@ class TextRegressionDataModule(HFDataModule):
 
     def process_data(self, dataset: Dataset, stage: Optional[str] = None) -> Dataset:
         input_feature_fields = [k for k, v in dataset["train"].features.items() if k not in ["label", "idx"]]
-        dataset = TextRegressionDataModule.preprocess(
+        dataset = self.__class__.preprocess(
             dataset,
             tokenizer=self.tokenizer,
             input_feature_fields=input_feature_fields,
@@ -37,7 +38,7 @@ class TextRegressionDataModule(HFDataModule):
             max_length=self.cfg.max_length,
         )
         cols_to_keep = [
-            x for x in ["input_ids", "attention_mask", "token_type_ids", "labels", "dialog_id", "turn_id"] if x in dataset["train"].features
+            x for x in ["input_ids", "attention_mask", "token_type_ids", "labels", "dialog_id", "turn_id", "sort_key"] if x in dataset["train"].features
         ]
         # if not isinstance(dataset["train"].features["labels"], ClassLabel):
         #     dataset = dataset.class_encode_column("labels")
@@ -81,21 +82,25 @@ class TextRegressionDataModule(HFDataModule):
         data_files = data_files if data_files else None
         if self.cfg.dataset_name is not None:
             # Download and load the Huggingface dataset.
-            try:
-                dataset_module = import_module(f'..datasets.{self.cfg.dataset_name}', self.__module__)
-                return load_my_dataset(
-                    dataset_module,
-                    name=self.cfg.dataset_config_name,
-                    cache_dir=self.cfg.cache_dir,
-                    data_files=data_files,
-                )
-            except: # not a customised dataset
-                return load_dataset(
-                    path=self.cfg.dataset_name,
-                    name=self.cfg.dataset_config_name,
-                    cache_dir=self.cfg.cache_dir,
-                    data_files=data_files,
-                )
+            # try:
+            dataset_module = import_module(f'..datasets.{self.cfg.dataset_name}', self.__module__)
+            return load_my_dataset(
+                dataset_module,
+                name=self.cfg.dataset_config_name,
+                cache_dir=self.cfg.cache_dir,
+                data_files=data_files,
+                history_delimeter=self.cfg.history_delimeter,
+                history_size=self.cfg.history_size,
+                script_version=f'histsz_{self.cfg.history_size}',
+                hierarchical=self.cfg.hierarchical,
+            )
+            # except: # not a customised dataset
+            #     return load_dataset(
+            #         path=self.cfg.dataset_name,
+            #         name=self.cfg.dataset_config_name,
+            #         cache_dir=self.cfg.cache_dir,
+            #         data_files=data_files,
+            #     )
     
     @property
     def collate_fn(self) -> Optional[Callable]:
@@ -103,3 +108,99 @@ class TextRegressionDataModule(HFDataModule):
             return DataCollatorWithPadding(self.tokenizer)
         else:
             return super().collate_fn
+
+
+class TextRegressionMultiDataModule(TextRegressionDataModule):
+    """Defines the ``LightningDataModule`` for Text Regression Datasets."""
+
+    def load_dataset(self) -> Dataset:
+        data_files = {}
+        if self.cfg.train_file is not None:
+            data_files["train"] = self.cfg.train_file
+        if self.cfg.validation_file is not None:
+            data_files["validation"] = self.cfg.validation_file
+        if self.cfg.test_file is not None:
+            data_files["test"] = self.cfg.test_file
+
+        data_files = data_files if data_files else None
+        if self.cfg.dataset_name == 'multi':
+            # Download and load the Huggingface dataset.
+            # try:
+            dataset_names = self.cfg.dataset_components.split(':')
+            assert self.cfg.reserved_dataset in dataset_names or not self.cfg.reserved_dataset
+            datasets = {}
+            for dataset_name in dataset_names:
+                dataset_module = import_module(f'..datasets.{dataset_name}', self.__module__)
+                dataset = load_my_dataset(
+                    dataset_module,
+                    name=self.cfg.dataset_config_name,
+                    cache_dir=self.cfg.cache_dir,
+                    data_files=data_files,
+                    history_delimeter=self.cfg.history_delimeter,
+                    history_size=self.cfg.history_size,
+                    script_version=f'histsz_{self.cfg.history_size}',
+                    hierarchical=self.cfg.hierarchical,
+                )
+                datasets[dataset_name] = dataset
+            return datasets
+            # except: # not a customised dataset
+            #     return load_dataset(
+            #         path=self.cfg.dataset_name,
+            #         name=self.cfg.dataset_config_name,
+            #         cache_dir=self.cfg.cache_dir,
+            #         data_files=data_files,
+            #     )
+    
+    def setup(self, stage: Optional[str] = None):
+        datasets = self.load_dataset()
+        for name, dataset in datasets.items():
+            datasets[name] = self.process_data(dataset, stage=stage)
+        self.ds = datasets
+
+    def train_dataloader(self) -> DataLoader:
+        train_loaders = []
+        for name, dataset in self.ds.items():
+            if name == self.cfg.reserved_dataset:
+                continue
+            dataloader = DataLoader(
+                dataset["train"],
+                batch_size=self.batch_size,
+                num_workers=self.cfg.num_workers,
+                collate_fn=self.collate_fn,
+                pin_memory=True,
+            )
+            train_loaders.append(dataloader)
+        return train_loaders
+    
+    def val_dataloader(self) -> DataLoader:
+        val_loaders = []
+        for name, dataset in self.ds.items():
+            dataloader = DataLoader(
+                dataset["validation"],
+                batch_size=self.batch_size,
+                num_workers=self.cfg.num_workers,
+                collate_fn=self.collate_fn,
+                pin_memory=True,
+            )
+            if name == (self.cfg.reserved_dataset if self.cfg.reserved_dataset else 'fed'):
+                reserved_loader = dataloader
+                continue
+            val_loaders.append(dataloader)
+        val_loaders.append(reserved_loader) # add reserved to the last
+        return val_loaders
+
+    def test_dataloader(self) -> Optional[DataLoader]:
+        test_loaders = []
+        for name, dataset in self.ds.items():
+            if name == self.cfg.reserved_dataset:
+                continue
+            if "test" in dataset:
+                dataloader = DataLoader(
+                    dataset["test"],
+                    batch_size=self.batch_size,
+                    num_workers=self.cfg.num_workers,
+                    collate_fn=self.collate_fn,
+                    pin_memory=True,
+                )
+                test_loaders.append(dataloader)
+        return test_loaders

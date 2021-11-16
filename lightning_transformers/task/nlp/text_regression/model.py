@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import random
 from collections import defaultdict
 from typing import Any, List
-from scipy.stats.stats import spearmanr
 
 import torch
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from scipy.stats import pearsonr
+from scipy.stats.stats import spearmanr
 
 from lightning_transformers.core.nlp import HFTransformer
 
@@ -29,46 +30,74 @@ class TextRegressionTransformer(HFTransformer):
     Args:
         *args: :class:`lightning_transformers.core.nlp.HFTransformer` arguments.
         downstream_model_type: Downstream HuggingFace AutoModel to load.
-            (default ``transformers.AutoModelForSequenceClassification``)
+            (default ``transformers.BertModel``)
         **kwargs: :class:`lightning_transformers.core.nlp.HFTransformer` arguments.
     """
 
     def __init__(
-        self, *args, downstream_model_type: str = "transformers.AutoModelForSequenceClassification", **kwargs
+        self, *args, downstream_model_type: str = "transformers.BertModel", **kwargs
     ) -> None:
         super().__init__(downstream_model_type, *args, **kwargs)
         self.criterion = torch.nn.MSELoss()
+        self.linear = torch.nn.Linear(self.model.config.hidden_size, 1)
         # self.metrics = {}
 
     def common_step(self, batch: Any, return_scores=False) -> torch.Tensor:
-        input_keys = set(batch.keys()) - {'dialog_id', 'turn_id', 'labels'}
+        input_keys = set(batch.keys()) - {'dialog_id', 'turn_id', 'labels', 'sort_key'}
         inputs = {key: batch[key] for key in input_keys}
         outputs = self.model(**inputs)
-        logits = outputs.logits.squeeze(-1)
-        scores_relu10 = logits.clamp(0, 10)
+        # pooling: mean/max/min/cls
+        if self.cfg.pooling_method == 'cls':
+            pooled = outputs.pooler_output
+        else:
+            # apply attention mask
+            masked = outputs.last_hidden_state * inputs['attention_mask'].unsqueeze(-1) # bsz * seq_len * hidden_sz
+            if self.cfg.pooling_method == 'mean':
+                pooled = masked.mean(dim=1)
+            elif self.cfg.pooling_method == 'max':
+                pooled = masked.max(dim=1)[0]
+            elif self.cfg.pooling_method == 'min':
+                pooled = masked.min(dim=1)[0]
+        logits = self.linear(pooled).squeeze(-1)
+        if self.cfg.activation == 'relu1':
+            scores = logits.clamp(0, 1)
+        elif self.cfg.activation == 'sigmoid':
+            scores = torch.sigmoid(logits)
         # Avg baseline
         # scores_relu10 = (7.84 - batch['turn_id']).clamp(min=0.0) / 0.784
-        loss = self.criterion(scores_relu10, batch['labels'])
+        loss = 100 * self.criterion(scores, batch['labels']) # * 100 should be the same as norm10
         if return_scores:
-            return loss, scores_relu10
+            return loss, scores
 
         return loss
 
     def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
+        if type(batch) == list: # multi-tasking
+            choice = random.randrange(0, len(batch))
+            batch = batch[choice]
         loss = self.common_step(batch)
         self.log("train_loss", loss)
 
         return loss
 
     def validation_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
-        loss = self.common_step(batch)
-        self.log("val_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True)
-
-        return loss
-
-    def test_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
+        val_dataloader = self.val_dataloader()
+        if isinstance(val_dataloader, list) and dataloader_idx == len(val_dataloader) - 1:# only run common_eval for last dataset
+            return self.common_step_return_scores(batch, stage='val')
+        else:
+            loss = self.common_step(batch)
+            self.log("val_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True, add_dataloader_idx=False)
+    
+    def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        val_dataloader = self.val_dataloader()
+        if isinstance(val_dataloader, list) and len(val_dataloader) > 1: # the last dataloader is for correlations
+            pearson, spearman = self.eval_correlations(outputs[-1])
+            self.log("pearson", pearson[0])
+            self.log("spearman", spearman[0])
+    
+    def common_step_return_scores(self, batch, stage='val'):
         loss, scores = self.common_step(batch, return_scores=True)
-        self.log("test_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True)
+        self.log(f"{stage}_loss", loss, prog_bar=True, sync_dist=True, rank_zero_only=True)
 
         return {
             'loss': loss,
@@ -79,7 +108,7 @@ class TextRegressionTransformer(HFTransformer):
             'turn_id': batch['turn_id'].cpu().tolist(),
         }
     
-    def test_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+    def eval_correlations(self, outputs: EPOCH_OUTPUT) -> None:
         # collate all results in the format of List[dialogs[turns]]
         dialogs = defaultdict(list)
         for batch_output in outputs:
@@ -94,13 +123,29 @@ class TextRegressionTransformer(HFTransformer):
             dialog = sorted(dialog, key=lambda x: int(x[-1]))
             ordered_dialogs.append(dialog)
 
-        self.calc_correlations_first_last_n(ordered_dialogs)
+        pearson, spearman = self.calc_correlations_first_last_n(ordered_dialogs)
         self.calc_correlations_first_last_n(ordered_dialogs, n=[3, 2, 1])
-        self.get_greetings_farewells(ordered_dialogs)
+        # self.get_greetings_farewells(ordered_dialogs)
+
+        # fp = open('./predictions.txt', 'w')
+        # for dialog in ordered_dialogs:
+        #     for turn in dialog:
+        #         fp.write(f'{turn[0]}\tGT: {turn[1]:.2f}\tPred: {turn[2]:.2f}\n')
+        #     fp.write('\n')
+        #     fp.write('============\n\n')
+        # fp.close()
+
+        return pearson, spearman
+
+    def test_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
+        return self.common_step_return_scores(batch, stage='test')
+    
+    def test_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        self.eval_correlations(outputs) # no logging or return needed
 
     def get_greetings_farewells(self, ordered_dialogs):
-        GREETING_THRESH = 8.5
-        FAREWELL_THRESH = 1.5
+        GREETING_THRESH = 0
+        FAREWELL_THRESH = 0.15
         greetings_file = open('./greetings.txt', 'w')
         farewells_file = open('./farewells.txt', 'w')
         for dialog in ordered_dialogs:
@@ -125,7 +170,7 @@ class TextRegressionTransformer(HFTransformer):
         fp.write('\n')
         # fp.write('============\n\n')
 
-    def calc_correlations(self, ordered_dialogs):
+    def pearson_spearman_correlations(self, ordered_dialogs):
         all_labels_scores = [[(turn[2], turn[1]) for turn in dialog] for dialog in ordered_dialogs]
 
         flatten_scores = [turn for dialog in all_labels_scores for turn in dialog]
@@ -134,17 +179,19 @@ class TextRegressionTransformer(HFTransformer):
     
     def calc_correlations_first_last_n(self, ordered_dialogs, n=None):
         if n is None:
-            pearson, spearman = self.calc_correlations(ordered_dialogs)
+            pearson, spearman = self.pearson_spearman_correlations(ordered_dialogs)
             print(f'Overall Pearson: {pearson[0]:.2f}, pval: {pearson[1]}')
             print(f'Overall Spearman: {spearman[0]:.2f}, pval: {spearman[1]}')
         elif type(n) is int:
             removed_intermediate = [dialog[:n] + dialog[-n:] if len(dialog) > 2*n else dialog for dialog in ordered_dialogs]
-            pearson, spearman = self.calc_correlations(removed_intermediate)
+            pearson, spearman = self.pearson_spearman_correlations(removed_intermediate)
             print(f'First/Last {n} P: {pearson[0]:.2f}, pval: {pearson[1]}')
             print(f'First/Last {n} S: {spearman[0]:.2f}, pval: {spearman[1]}')
         elif type(n) is list:
             for N in n:
-                self.calc_correlations_first_last_n(ordered_dialogs, n=N)
+                pearson, spearman = self.calc_correlations_first_last_n(ordered_dialogs, n=N)
+        
+        return pearson, spearman
 
     def configure_metrics(self, _) -> None:
         # TODO: add correlation metric?

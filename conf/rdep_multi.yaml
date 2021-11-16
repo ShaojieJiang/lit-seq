@@ -1,0 +1,25 @@
+defaults: # loads default configs
+  - rdep
+  - override dataset: nlp/text_regression/multi
+  - override scheduler: constant_schedule_with_warmup
+
+dataset:
+  cfg:
+    dataset_components: my_daily_dialog:my_personachat:my_empathetic_dialogues:my_wizard_of_wikipedia:fed
+    reserved_dataset: fed
+
+task:
+  cfg:
+    task_name: text_regression_flat_hist
+    pooling_method: mean
+
+training:
+  lr: 5e-5
+  run_test_after_fit: False
+
+trainer:
+  limit_val_batches: 150 # maximum batches for each dataloader, enough for FED
+  num_sanity_val_steps: 19 # full check on FED
+  default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}/${experiment_name}
+
+seed: 11

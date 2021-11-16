@@ -1,0 +1,12 @@
+defaults: # loads default configs
+  - rdep_multi
+
+dataset:
+  _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionMultiDataModule
+  cfg:
+    hierarchical: True
+
+task:
+  _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionTransformer
+  cfg:
+    task_name: text_regression_hier_hist

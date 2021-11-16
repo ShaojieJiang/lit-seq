@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import pytorch_lightning as pl
 import torch
+from torch.optim.optimizer import Optimizer
 import transformers
 from pytorch_lightning.utilities import rank_zero_info, rank_zero_warn
 
@@ -55,6 +56,12 @@ class LitTransformer(pl.LightningModule):
                 "name": None,
             },
         }
+    
+    def optimizer_step(self, epoch: int = None, batch_idx: int = None, optimizer: Optimizer = None, optimizer_idx: int = None, optimizer_closure: Optional[Callable] = None, on_tpu: bool = None, using_native_amp: bool = None, using_lbfgs: bool = None) -> None:
+        scheduler_opt = self.trainer.lr_schedulers[0]
+        if not scheduler_opt['reduce_on_plateau'] and self.global_step % scheduler_opt['frequency'] != 0:
+            self.scheduler.step()
+        return super().optimizer_step(epoch=epoch, batch_idx=batch_idx, optimizer=optimizer, optimizer_idx=optimizer_idx, optimizer_closure=optimizer_closure, on_tpu=on_tpu, using_native_amp=using_native_amp, using_lbfgs=using_lbfgs)
 
     @property
     def num_training_steps(self) -> int:
@@ -79,14 +86,14 @@ class LitTransformer(pl.LightningModule):
             return self.trainer.max_steps
         return max_estimated_steps
 
-    def compute_warmup(self, num_training_steps: int, num_warmup_steps: Union[int, float]) -> Tuple[int, int]:
-        if num_training_steps < 0:
-            # less than 0 specifies to infer number of training steps
-            num_training_steps = self.num_training_steps
-        if isinstance(num_warmup_steps, float):
-            # Convert float values to percentage of training steps to use as warmup
-            num_warmup_steps *= num_training_steps
-        return num_training_steps, num_warmup_steps
+    # def compute_warmup(self, num_training_steps: int, num_warmup_steps: Union[int, float]) -> Tuple[int, int]:
+    #     if num_training_steps < 0:
+    #         # less than 0 specifies to infer number of training steps
+    #         num_training_steps = self.num_training_steps
+    #     if isinstance(num_warmup_steps, float):
+    #         # Convert float values to percentage of training steps to use as warmup
+    #         num_warmup_steps *= num_training_steps
+    #     return num_training_steps, num_warmup_steps
 
     def setup(self, stage: str):
         self.configure_metrics(stage)
@@ -128,16 +135,16 @@ class TaskTransformer(LitTransformer):
             return super().configure_optimizers()
 
         self.optimizer = self.instantiator.optimizer(self.model, self.optimizer_cfg)
-        if 'num_warmup_steps' in self.scheduler_cfg:
-            # only do this for schedulers that need a warmup
-            # compute_warmup needs the datamodule to be available when `self.num_training_steps`
-            # is called that is why this is done here and not in the __init__
-            self.scheduler_cfg.num_training_steps, self.scheduler_cfg.num_warmup_steps = self.compute_warmup(
-                num_training_steps=self.scheduler_cfg.num_training_steps,
-                num_warmup_steps=self.scheduler_cfg.num_warmup_steps,
-            )
-            rank_zero_info(f"Inferring number of training steps, set to {self.scheduler_cfg.num_training_steps}")
-            rank_zero_info(f"Inferring number of warmup steps from ratio, set to {self.scheduler_cfg.num_warmup_steps}")
+        # if 'num_warmup_steps' in self.scheduler_cfg:
+        #     # only do this for schedulers that need a warmup
+        #     # compute_warmup needs the datamodule to be available when `self.num_training_steps`
+        #     # is called that is why this is done here and not in the __init__
+        #     self.scheduler_cfg.num_training_steps, self.scheduler_cfg.num_warmup_steps = self.compute_warmup(
+        #         num_training_steps=10000,
+        #         num_warmup_steps=self.scheduler_cfg.num_warmup_steps,
+        #     )
+        #     rank_zero_info(f"Inferring number of training steps, set to {self.scheduler_cfg.num_training_steps}")
+        #     rank_zero_info(f"Inferring number of warmup steps from ratio, set to {self.scheduler_cfg.num_warmup_steps}")
         self.scheduler = self.instantiator.scheduler(self.scheduler_cfg, self.optimizer)
         return super().configure_optimizers()
 

@@ -1,6 +1,7 @@
 """TODO(blended_skill_talk): Add a description here."""
 
 
+import json
 import os
 
 import datasets
@@ -9,22 +10,15 @@ from lightning_transformers.task.nlp.text_regression.datasets import dataset_bas
 
 # TODO(blended_skill_talk): BibTeX citation
 _CITATION = """\
-@article{zhang2018personalizing,
-  title={Personalizing dialogue agents: I have a dog, do you have pets too?},
-  author={Zhang, Saizheng and Dinan, Emily and Urbanek, Jack and Szlam, Arthur and Kiela, Douwe and Weston, Jason},
-  journal={arXiv preprint arXiv:1801.07243},
-  year={2018}
-}
 """
 
 # TODO(blended_skill_talk):
 _DESCRIPTION = """\
-A dataset of 7k conversations explicitly designed to exhibit multiple conversation modes: displaying personality, having empathy, and demonstrating knowledge.
 """
-_URL = "http://parl.ai/downloads/personachat/personachat.tgz"
+_URL = "https://parl.ai/downloads/controllable_dialogue/evaluation_logs_reproducible_v1.tar.gz"
 
 
-class Personachat(dataset_base.DatasetBase):
+class PersonachatEngaging(dataset_base.DatasetBase):
     """TODO(blended_skill_talk): Short description of my dataset."""
 
     # TODO(blended_skill_talk): Set up version.
@@ -42,7 +36,7 @@ class Personachat(dataset_base.DatasetBase):
             # builder.as_dataset.
             supervised_keys=None,
             # Homepage of the dataset for documentation
-            homepage="https://github.com/facebookresearch/ParlAI/tree/main/parlai/tasks/personachat",
+            homepage="https://parl.ai/projects/controllable_dialogue/",
             citation=_CITATION,
         )
 
@@ -52,40 +46,35 @@ class Personachat(dataset_base.DatasetBase):
         # dl_manager is a datasets.download.DownloadManager that can be used to
         # download and extract URLs
         data_dir = dl_manager.download_and_extract(_URL)
-        data_dir += '/personachat'
+        data_dir = os.path.join(data_dir, 'evaluation_logs_reproducible')
         return [
             datasets.SplitGenerator(
                 name=datasets.Split.TRAIN,
                 # These kwargs will be passed to _generate_examples
-                gen_kwargs={"filepath": os.path.join(data_dir, "train_both_original.txt")},
+                gen_kwargs={"filepath": os.path.join(data_dir, "human_eval.jsonl")},
             ),
             datasets.SplitGenerator(
                 name=datasets.Split.VALIDATION,
                 # These kwargs will be passed to _generate_examples
-                gen_kwargs={"filepath": os.path.join(data_dir, "valid_both_original.txt")},
+                gen_kwargs={"filepath": os.path.join(data_dir, "human_eval.jsonl")},
             ),
             datasets.SplitGenerator(
                 name=datasets.Split.TEST,
                 # These kwargs will be passed to _generate_examples
-                gen_kwargs={"filepath": os.path.join(data_dir, "test_both_original.txt")},
+                gen_kwargs={"filepath": os.path.join(data_dir, "human_eval.jsonl")},
             ),
         ]
 
     def _generate_examples(self, filepath):
         """Yields examples."""
         # TODO(blended_skill_talk): Yields (key, example) tuples from the dataset
+        dialogs = []
         with open(filepath, encoding="utf-8") as f:
-            dialogs = []
-            current_dialog = []
-            for id_, row in enumerate(f):
-                splits = row.split('\t')
-                if len(splits) <= 1: # persona line, skip
-                    if len(current_dialog) >= 2:
-                        dialogs.append(current_dialog)
-                        current_dialog = []
-                    continue
-                context, response = splits[0], splits[1]
-                context = ' '.join(context.split(' ')[1:]) # get rid of the number in the beginning
-                current_dialog.extend([context, response])
+            for line in f:
+                data = json.loads(line)
+                dialog = data['dialog']
+                engaging = data['evaluation_results']['enjoy']
+                dialog = [(turn['text'], engaging) for turn in dialog] # using dialog-level engagingness score for each turn
+                dialogs.append(dialog)
 
         return self._common_generate_examples(dialogs)

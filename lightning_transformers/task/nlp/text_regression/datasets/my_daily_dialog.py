@@ -20,6 +20,9 @@ from zipfile import ZipFile
 
 import datasets
 
+from lightning_transformers.task.nlp.text_regression.datasets import dataset_base
+
+
 _CITATION = """\
 @InProceedings{li2017dailydialog,
     author = {Li, Yanran and Su, Hui and Shen, Xiaoyu and Li, Wenjie and Cao, Ziqiang and Niu, Shuzi},
@@ -58,26 +61,17 @@ emotion_label = {
 }
 
 
-class DailyDialog(datasets.GeneratorBasedBuilder):
+class DailyDialog(dataset_base.DatasetBase):
     """DailyDialog: A Manually Labelled Multi-turn Dialogue Dataset"""
 
-    VERSION = datasets.Version("1.0.0")
+    VERSION = datasets.Version("1.0.2") # norm to [0, 1]
 
     __EOU__ = " __eou__ " # get rid of white spaces between turns
 
     def _info(self):
         return datasets.DatasetInfo(
             description=_DESCRIPTION,
-            features=datasets.Features(
-                {
-                    "text": datasets.Value("string"),
-                    "label": datasets.Value("float"),
-                    "act": datasets.ClassLabel(names=list(act_label.values())),
-                    "emotion": datasets.ClassLabel(names=list(emotion_label.values())),
-                    "dialog_id": datasets.Value("int32"),
-                    "turn_id": datasets.Value("int32"),
-                }
-            ),
+            features=self._features(),
             supervised_keys=None,
             homepage="http://yanran.li/dailydialog",
             citation=_CITATION,
@@ -136,25 +130,10 @@ class DailyDialog(datasets.GeneratorBasedBuilder):
         with open(file_path, "r", encoding="utf-8") as f, open(act_path, "r", encoding="utf-8") as act, open(
             emotion_path, "r", encoding="utf-8"
         ) as emotion:
-            for dialog_id, (line_f, line_act, line_emotion) in enumerate(zip(f, act, emotion)):
+            dialogs = []
+            for (line_f, line_act, line_emotion) in zip(f, act, emotion): # not using acts or emotions for now
                 if len(line_f.strip()) == 0:
                     break
                 dialog = line_f.replace(' __eou__\n', '').split(self.__EOU__) # get rid of the last __eou__ before splitting
-                act = line_act.split(" ")[:-1]
-                emotion = line_emotion.split(" ")[:-1]
-
-                assert len(dialog) == len(act) == len(emotion), "Different turns btw dialogue & emotion & action"
-
-                dialog_len = len(dialog)
-                for turn_id, (turn, turn_act, turn_emotion) in enumerate(zip(dialog, act, emotion)):
-                    label = dialog_len - turn_id - 1
-                    norm10 = label / (dialog_len - 1) * 10
-
-                    yield f'{dialog_id}-{turn_id}', {
-                        "text": turn,
-                        "label": norm10,
-                        "dialog_id": dialog_id,
-                        "turn_id": turn_id,
-                        "act": int(turn_act),
-                        "emotion": int(turn_emotion),
-                    }
+                dialogs.append(dialog)
+            return self._common_generate_examples(dialogs)

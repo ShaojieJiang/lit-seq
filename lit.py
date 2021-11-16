@@ -2,7 +2,7 @@
 import hydra
 from omegaconf import DictConfig
 
-from lightning_transformers.cli.train import main
+from lightning_transformers.cli.lit import main
 
 
 @hydra.main(config_path="./conf", config_name="config")

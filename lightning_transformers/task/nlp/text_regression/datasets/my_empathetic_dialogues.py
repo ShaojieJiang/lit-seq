@@ -6,6 +6,8 @@ import os
 
 import datasets
 
+from lightning_transformers.task.nlp.text_regression.datasets import dataset_base
+
 _CITATION = """\
 @inproceedings{rashkin2019towards,
   title = {Towards Empathetic Open-domain Conversation Models: a New Benchmark and Dataset},
@@ -21,11 +23,11 @@ PyTorch original implementation of Towards Empathetic Open-domain Conversation M
 _URL = "https://dl.fbaipublicfiles.com/parlai/empatheticdialogues/empatheticdialogues.tar.gz"
 
 
-class EmpatheticDialogues(datasets.GeneratorBasedBuilder):
+class EmpatheticDialogues(dataset_base.DatasetBase):
     """TODO(empathetic_dialogues): Short description of my dataset."""
 
     # TODO(empathetic_dialogues): Set up version.
-    VERSION = datasets.Version("0.1.0")
+    VERSION = datasets.Version("1.0.2") # norm to [0, 1]
 
     def _info(self):
         # TODO(empathetic_dialogues): Specifies the datasets.DatasetInfo object
@@ -33,14 +35,7 @@ class EmpatheticDialogues(datasets.GeneratorBasedBuilder):
             # This is the description that will appear on the datasets page.
             description=_DESCRIPTION,
             # datasets.features.FeatureConnectors
-            features=datasets.Features(
-                {
-                    "text": datasets.Value("string"),
-                    "label": datasets.Value("float"),
-                    "dialog_id": datasets.Value("int32"),
-                    "turn_id": datasets.Value("int32"),
-                }
-            ),
+            features=self._features(),
             # If there's a common (input, target) tuple from the features,
             # specify them here. They'll be used if as_supervised=True in
             # builder.as_dataset.
@@ -107,17 +102,5 @@ class EmpatheticDialogues(datasets.GeneratorBasedBuilder):
             
             if len(current_dialog) > 1: # add last
                 dialogs.append(current_dialog)
-
-            for dialog_id, dialog in enumerate(dialogs):
-
-                dialog_len = len(dialog)
-                for turn_id, turn in enumerate(dialog):
-                    label = dialog_len - turn_id - 1
-                    norm10 = label / (dialog_len - 1) * 10
-
-                    yield f'{dialog_id}-{turn_id}', {
-                        "text": turn,
-                        "label": norm10,
-                        "dialog_id": dialog_id,
-                        "turn_id": turn_id,
-                    }
+            
+            return self._common_generate_examples(dialogs)

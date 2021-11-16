@@ -21,36 +21,15 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerBase
 from transformers.data.data_collator import DataCollatorWithPadding
 
-from lightning_transformers.core.nlp import HFDataModule
-from lightning_transformers.core.utils import load_my_dataset
+from lightning_transformers.task.nlp.text_regression.data import TextRegressionDataModule, TextRegressionMultiDataModule
 
 
-class HierarchicalTextRegressionDataModule(HFDataModule):
+class HierarchicalDataMixin:
     """Defines the ``LightningDataModule`` for Text Regression Datasets."""
 
     def process_data(self, dataset: Dataset, stage: Optional[str] = None) -> Dataset:
-        input_feature_fields = [k for k, v in dataset["train"].features.items() if k not in ["label", "idx"]]
-        dataset = dataset.sort('sort_key', reverse=True) # should CUDA OOM exist, this allows it to appear earlier
-        dataset = HierarchicalTextRegressionDataModule.preprocess(
-            dataset,
-            tokenizer=self.tokenizer,
-            input_feature_fields=input_feature_fields,
-            padding=self.cfg.padding,
-            truncation=self.cfg.truncation,
-            max_length=self.cfg.max_length,
-        )
-        cols_to_keep = [
-            x for x in ["input_ids", "attention_mask", "token_type_ids", "labels", "dialog_id", "turn_id"] if x in dataset["train"].features
-        ]
-        # if not isinstance(dataset["train"].features["labels"], ClassLabel):
-        #     dataset = dataset.class_encode_column("labels")
-
-        dataset.set_format("torch", columns=cols_to_keep)
-        return dataset
-
-    @property
-    def model_data_kwargs(self) -> Dict[str, int]:
-        return {"num_labels": 1} # for regression we need only 1 class
+        # dataset = dataset.sort('turn_id', reverse=True) # should CUDA OOM exist, this allows it to appear earlier
+        return super().process_data(dataset, stage)
 
     @staticmethod
     def convert_to_features(
@@ -82,49 +61,20 @@ class HierarchicalTextRegressionDataModule(HFDataModule):
     def preprocess(ds: Dataset, **fn_kwargs) -> Dataset:
         ds = ds.map(
             # todo: change this to self.convert_to_features for users to override
-            HierarchicalTextRegressionDataModule.convert_to_features,
+            HierarchicalDataMixin.convert_to_features,
             batched=True,
             with_indices=True,
             fn_kwargs=fn_kwargs,
         )
         ds.rename_column_("label", "labels")
         return ds
-
-    def load_dataset(self) -> Dataset:
-        data_files = {}
-        if self.cfg.train_file is not None:
-            data_files["train"] = self.cfg.train_file
-        if self.cfg.validation_file is not None:
-            data_files["validation"] = self.cfg.validation_file
-        if self.cfg.test_file is not None:
-            data_files["test"] = self.cfg.test_file
-
-        data_files = data_files if data_files else None
-        if self.cfg.dataset_name is not None:
-            # Download and load the Huggingface dataset.
-            try:
-                dataset_module = import_module(f'..datasets.{self.cfg.dataset_name}', self.__module__)
-                return load_my_dataset(
-                    dataset_module,
-                    name=self.cfg.dataset_config_name,
-                    cache_dir=self.cfg.cache_dir,
-                    data_files=data_files,
-                    history_size=self.cfg.history_size,
-                )
-            except: # not a customised dataset
-                return load_dataset(
-                    path=self.cfg.dataset_name,
-                    name=self.cfg.dataset_config_name,
-                    cache_dir=self.cfg.cache_dir,
-                    data_files=data_files,
-                )
     
     @property
     def collate_fn(self) -> Optional[Callable]:
         if self.cfg.padding != 'max_length':
             return DataCollatorWithTurnAndDialogPadding(self.tokenizer)
         else:
-            return super().collate_fn
+            raise NotImplementedError()
 
 
 class DataCollatorWithTurnAndDialogPadding(DataCollatorWithPadding):
@@ -164,9 +114,17 @@ class DataCollatorWithTurnAndDialogPadding(DataCollatorWithPadding):
     
     def pad_dialogues(self, batch_dialogues, max_turns):
         keys = ['attention_mask', 'input_ids', 'token_type_ids']
-        dummy_turn = {'input_ids': torch.LongTensor([101, 102]), 'attention_mask': torch.LongTensor([1, 1]), 'token_type_ids': torch.LongTensor([0, 0])}
+        dummy_turn = {'input_ids': torch.LongTensor([0]), 'attention_mask': torch.LongTensor([0]), 'token_type_ids': torch.LongTensor([0])}
         for dialogue in batch_dialogues:
             if len(dialogue[keys[0]]) < max_turns: # needs to be padded
                 pad_len = max_turns - len(dialogue[keys[0]])
                 for key in keys:
                     dialogue[key] += pad_len * [dummy_turn[key]]
+
+
+class HierarchicalTextRegressionDataModule(HierarchicalDataMixin, TextRegressionDataModule):
+    pass
+
+
+class HierarchicalTextRegressionMultiDataModule(HierarchicalDataMixin, TextRegressionMultiDataModule):
+    pass

@@ -17,6 +17,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import LightningDataModule
 from pytorch_lightning.utilities.distributed import rank_zero_info
+from pytorch_lightning.utilities.seed import seed_everything
 
 from lightning_transformers.core import TaskTransformer, TransformerDataModule
 from lightning_transformers.core.config import TaskConfig, TrainerConfig, TransformerDataConfig
@@ -26,6 +27,7 @@ from lightning_transformers.core.utils import set_ignore_warnings, validate_resu
 
 
 def run(
+    cfg: DictConfig,
     instantiator: Instantiator,
     ignore_warnings: bool = True,
     run_test_after_fit: bool = True,
@@ -52,27 +54,38 @@ def run(
     data_module.setup("fit")
 
     model: TaskTransformer = instantiator.model(task, model_data_kwargs=getattr(data_module, "model_data_kwargs", None))
-    trainer = instantiator.trainer(
-        trainer,
-        logger=logger,
-        max_steps=0, # make sure we don't train the model anymore
-        val_check_interval=1.0, # override anything specified in the config files
-    )
+    if cfg.stage == 'train':
+        trainer = instantiator.trainer(
+            trainer,
+            logger=logger,
+        )
+    elif cfg.stage == 'test':
+        trainer = instantiator.trainer(
+            trainer,
+            logger=logger,
+            max_steps=0, # make sure we don't train the model anymore
+            val_check_interval=1.0, # override anything specified in the config files
+        )
 
-    trainer.fit(model, datamodule=data_module) # this is a dummy fit, but used to load trained models
-    trainer.test(model, datamodule=data_module)
-
-    best_model_path = trainer.checkpoint_callback.best_model_path
-    model.load_from_checkpoint(best_model_path).cuda()
-    model.interact()
+    # manual load
+    if cfg.fintune_ckpt:
+        model = model.load_from_checkpoint(cfg.fintune_ckpt, optimizer=cfg.task.optimizer)
+    trainer.fit(model, datamodule=data_module)
+    if run_test_after_fit or cfg.stage =='test':
+        trainer.test(datamodule=data_module)
 
 
 def main(cfg: DictConfig) -> None:
     validate_resume_path(cfg)
     rank_zero_info(OmegaConf.to_yaml(cfg))
+    if cfg.seed:
+        seed_everything(cfg.seed, workers=True)
     instantiator = HydraInstantiator()
     logger = instantiator.logger(cfg)
+    if logger:
+        logger.log_hyperparams(cfg)
     run(
+        cfg,
         instantiator,
         ignore_warnings=cfg.get("ignore_warnings"),
         run_test_after_fit=cfg.get("training").get("run_test_after_fit"),

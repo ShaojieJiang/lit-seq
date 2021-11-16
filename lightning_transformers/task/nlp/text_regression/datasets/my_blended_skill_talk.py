@@ -6,6 +6,8 @@ import os
 
 import datasets
 
+from lightning_transformers.task.nlp.text_regression.datasets import dataset_base
+
 # TODO(blended_skill_talk): BibTeX citation
 _CITATION = """\
 @misc{smith2020evaluating,
@@ -25,11 +27,11 @@ A dataset of 7k conversations explicitly designed to exhibit multiple conversati
 _URL = "http://parl.ai/downloads/blended_skill_talk/blended_skill_talk.tar.gz"
 
 
-class BlendedSkillTalk(datasets.GeneratorBasedBuilder):
+class BlendedSkillTalk(dataset_base.DatasetBase):
     """TODO(blended_skill_talk): Short description of my dataset."""
 
     # TODO(blended_skill_talk): Set up version.
-    VERSION = datasets.Version("1.0.0")
+    VERSION = datasets.Version("1.0.2") # norm to [0, 1]
 
     def _info(self):
         # TODO(blended_skill_talk): Specifies the datasets.DatasetInfo object
@@ -37,14 +39,7 @@ class BlendedSkillTalk(datasets.GeneratorBasedBuilder):
             # This is the description that will appear on the datasets page.
             description=_DESCRIPTION,
             # datasets.features.FeatureConnectors
-            features=datasets.Features(
-                {
-                    "text": datasets.Value("string"),
-                    "label": datasets.Value("float"),
-                    "dialog_id": datasets.Value("int32"),
-                    "turn_id": datasets.Value("int32"),
-                }
-            ),
+            features=self._features(),
             # If there's a common (input, target) tuple from the features,
             # specify them here. They'll be used if as_supervised=True in
             # builder.as_dataset.
@@ -83,18 +78,10 @@ class BlendedSkillTalk(datasets.GeneratorBasedBuilder):
         # TODO(blended_skill_talk): Yields (key, example) tuples from the dataset
         with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
+            dialogs = []
             for dialog_id, row in enumerate(data):
                 # personas = [row["personas"][1][0], row["personas"][1][1]]
                 dialog = [turn[1] for turn in row["dialog"]]
+                dialogs.append(dialog)
 
-                dialog_len = len(dialog)
-                for turn_id, turn in enumerate(dialog):
-                    label = dialog_len - turn_id - 1
-                    norm10 = label / (dialog_len - 1) * 10
-
-                    yield f'{dialog_id}-{turn_id}', {
-                        "text": turn,
-                        "label": norm10,
-                        "dialog_id": dialog_id,
-                        "turn_id": turn_id,
-                    }
+            return self._common_generate_examples(dialogs)
