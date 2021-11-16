@@ -32,7 +32,7 @@ class HierarchicalBert(torch.nn.Module):
         dialog_attention_mask = []
         for turn_batch in turn_batches:
             turn_output = self.turn_encoder(**turn_batch)
-            if self.pooling_method == 'first':
+            if self.pooling_method == 'cls':
                 turn_output = turn_output['pooler_output'].unsqueeze(1)
             else:
                 masked = turn_output['last_hidden_state'] * turn_batch['attention_mask'].unsqueeze(-1) # bsz * seq_len * hidden_sz
