@@ -16,14 +16,14 @@ All the data downloading and preprocessing are taken care of automatically.
 Simply run the following command to reproduce the training in our paper for the RDEP-H3 model.
 Checkpoints will be released soon.
 
-`python lit.py --config-name dpp_hier_multi dataset.cfg.history_size=3 trainer.default_root_dir='your_path_to_save_checkpoints'`
+`python lit.py --config-name rdep_hier_multi dataset.cfg.history_size=3 trainer.default_root_dir='your_path_to_save_checkpoints'`
 
 ## Inference
 
 ```
 export DATASET=fed # or daily_dialog_engaging
 
-python lit.py --config-name dpp_hier dataset.cfg.history_size=3 trainer.default_root_dir='your_path_to_save_checkpoints' stage=test log=False dataset=nlp/text_regression/${DATASET}
+python lit.py --config-name rdep_hier dataset.cfg.history_size=3 trainer.default_root_dir='your_path_to_save_checkpoints' stage=test log=False dataset=nlp/text_regression/${DATASET}
 ```
 
 ## License
