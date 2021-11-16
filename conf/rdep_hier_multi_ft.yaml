@@ -1,0 +1,10 @@
+defaults: # loads default configs
+  - rdep_hier_multi
+
+dataset:
+  cfg:
+    dataset_components: convai:fed
+
+trainer:
+  max_steps: 100000
+  val_check_interval: 1000
