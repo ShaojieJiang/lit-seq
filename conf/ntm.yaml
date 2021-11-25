@@ -13,7 +13,7 @@ backbone:
 
 dataset:
   cfg:
-    train_val_split: 0.2
+    train_val_split: 0.01
     # history_delimeter: ' [SEP] '
     # history_size: 1
     # hierarchical: False
@@ -35,8 +35,8 @@ task:
     pooling_method: cls
     task_name: ntm
     activation: relu1
-    scheduler_monitor: pearson
-    scheduler_mode: max
+    scheduler_monitor: val_loss
+    scheduler_mode: min
 
 trainer:
   gpus: 0
@@ -44,12 +44,13 @@ trainer:
   max_steps: 50000
   max_epochs: 100
   gradient_clip_val: 0.1
+  default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}/${experiment_name}
   resume_from_checkpoint: ${trainer.default_root_dir}/last.ckpt
   logger:
     project: ntm
 
 training:
-  lr: 0.05
+  lr: 15
   batch_size: 1
 
 optimizer:
