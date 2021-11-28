@@ -26,6 +26,7 @@ task:
     scheduler_monitor: val_loss
     scheduler_mode: min
     rnn_class: gru
+    rnn_share: True
 
 trainer:
   gpus: 1

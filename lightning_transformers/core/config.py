@@ -51,3 +51,4 @@ class LitTaskConfig:
     pooling_method: Optional[str] = 'mean'
     activation: Optional[str] = 'relu1'
     rnn_class: Optional[str] = 'gru'
+    rnn_share: Optional[bool] = True

@@ -53,7 +53,7 @@ class Seq2SeqBeamer(Seq2SeqTransformer):
         self.cfg = seq2seq_cfg
         model_cls: Type["AutoModel"] = get_class(downstream_model_type)
         config = AutoConfig.from_pretrained(backbone.pretrained_model_name_or_path, **model_data_kwargs)
-        model = BeamerForConditionalGeneration(config, rnn_class=cfg.rnn_class)
+        model = BeamerForConditionalGeneration(config, cfg)
         blenderbot = model_cls.from_pretrained(backbone.pretrained_model_name_or_path, **model_data_kwargs)
         res = model.load_state_dict(blenderbot.state_dict(), strict=False)
         print(f'The following parameters are missing from the state_dict: {res.missing_keys}')
@@ -64,9 +64,9 @@ class Seq2SeqBeamer(Seq2SeqTransformer):
 
 
 class BeamerForConditionalGeneration(BlenderbotForConditionalGeneration):
-    def __init__(self, config: BlenderbotConfig, rnn_class='rnn'):
+    def __init__(self, config: BlenderbotConfig, rnn_config):
         super(BlenderbotForConditionalGeneration, self).__init__(config)
-        self.model = BeamerModel(config, rnn_class=rnn_class)
+        self.model = BeamerModel(config, rnn_config)
         self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
         self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
 
@@ -74,15 +74,18 @@ class BeamerForConditionalGeneration(BlenderbotForConditionalGeneration):
 
 
 class BeamerModel(BlenderbotModel):
-    def __init__(self, config: BlenderbotConfig, rnn_class='rnn'):
+    def __init__(self, config: BlenderbotConfig, rnn_config):
         super(BlenderbotModel, self).__init__(config)
 
         padding_idx, vocab_size = config.pad_token_id, config.vocab_size
         self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
 
-        shared_rnn = BeamerRNN(config, batch_first=True, rnn_class=rnn_class)
-        self.encoder = BeamerEncoder(config, self.shared, shared_rnn)
-        self.decoder = BeamerDecoder(config, self.shared, shared_rnn)
+        if rnn_config.rnn_share:
+            shared_rnn = BeamerRNN(config, batch_first=True, rnn_class=rnn_config.rnn_class)
+        else:
+            shared_rnn = None
+        self.encoder = BeamerEncoder(config, rnn_config, self.shared, shared_rnn)
+        self.decoder = BeamerDecoder(config, rnn_config, self.shared, shared_rnn)
 
         self.init_weights()
     
@@ -162,7 +165,7 @@ class BeamerModel(BlenderbotModel):
 
 
 class BeamerEncoder(BlenderbotEncoder):
-    def __init__(self, config: BlenderbotConfig, embed_tokens: Optional[nn.Embedding] = None, shared_rnn=None):
+    def __init__(self, config: BlenderbotConfig, rnn_config, embed_tokens: Optional[nn.Embedding] = None, shared_rnn=None):
         super(BlenderbotEncoder, self).__init__(config)
         self.dropout = config.dropout
         self.layerdrop = config.encoder_layerdrop
@@ -181,6 +184,12 @@ class BeamerEncoder(BlenderbotEncoder):
             config.max_position_embeddings,
             embed_dim,
         )
+        if shared_rnn is None:
+            shared_rnn = BeamerRNN( # the RNN model that shared among all layers
+                config,
+                batch_first=True,
+                rnn_class=rnn_config.rnn_class,
+            )
         self.layers = nn.ModuleList([BeamerEncoderLayer(config, shared_rnn) for _ in range(config.encoder_layers)])
         self.layer_norm = nn.LayerNorm(config.d_model)
 
@@ -288,7 +297,7 @@ class BeamerEncoder(BlenderbotEncoder):
 
 
 class BeamerDecoder(BlenderbotDecoder):
-    def __init__(self, config: BlenderbotConfig, embed_tokens: Optional[nn.Embedding] = None, shared_rnn=None):
+    def __init__(self, config: BlenderbotConfig, rnn_config, embed_tokens: Optional[nn.Embedding] = None, shared_rnn=None):
         super(BlenderbotDecoder, self).__init__(config)
         self.dropout = config.dropout
         self.layerdrop = config.decoder_layerdrop
@@ -305,6 +314,12 @@ class BeamerDecoder(BlenderbotDecoder):
             config.max_position_embeddings,
             config.d_model,
         )
+        if shared_rnn is None:
+            shared_rnn = BeamerRNN( # the RNN model that shared among all layers
+                config,
+                batch_first=True,
+                rnn_class=rnn_config.rnn_class,
+            )
         self.layers = nn.ModuleList([BeamerDecoderLayer(config, shared_rnn) for _ in range(config.decoder_layers)])
         self.layer_norm = nn.LayerNorm(config.d_model)
 
@@ -467,7 +482,7 @@ class BeamerDecoder(BlenderbotDecoder):
 
 
 class BeamerEncoderLayer(BlenderbotEncoderLayer):
-    def __init__(self, config: BlenderbotConfig, shared_rnn: nn.Module=None):
+    def __init__(self, config: BlenderbotConfig, shared_rnn):
         super(BlenderbotEncoderLayer, self).__init__()
         self.embed_dim = config.d_model
         self.self_attn = BlenderbotAttention(
@@ -481,13 +496,7 @@ class BeamerEncoderLayer(BlenderbotEncoderLayer):
         self.activation_dropout = config.activation_dropout
         self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
-        if shared_rnn:
-            self.rnn = shared_rnn
-        else:
-            self.rnn = BeamerRNN(
-                config,
-                batch_first=True,
-            )
+        self.rnn = shared_rnn
 
     def forward(
         self,
@@ -533,7 +542,7 @@ class BeamerEncoderLayer(BlenderbotEncoderLayer):
 
 
 class BeamerDecoderLayer(BlenderbotDecoderLayer):
-    def __init__(self, config: BlenderbotConfig, shared_rnn: nn.Module=None):
+    def __init__(self, config: BlenderbotConfig, shared_rnn):
         super(BlenderbotDecoderLayer, self).__init__()
         self.embed_dim = config.d_model
 
@@ -557,13 +566,7 @@ class BeamerDecoderLayer(BlenderbotDecoderLayer):
         self.encoder_attn_layer_norm = nn.LayerNorm(self.embed_dim)
         self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
-        if shared_rnn:
-            self.rnn = shared_rnn
-        else:
-            self.rnn = BeamerRNN(
-                config,
-                batch_first=True,
-            )
+        self.rnn = shared_rnn
 
     def forward(
         self,
