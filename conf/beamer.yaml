@@ -1,0 +1,53 @@
+defaults: # loads default configs
+  - task: nlp/conversation 
+  - optimizer: sgd
+  - scheduler: reduce_lr_on_plateau
+  - training: default
+  - trainer: default
+  - trainer/logger: wandb
+  - hydra: output/custom
+  - override dataset: nlp/conversation/my_daily_dialog
+
+backbone:
+  pretrained_model_name_or_path: facebook/blenderbot-400M-distill
+
+dataset:
+  cfg:
+    history_delimeter: ' [SEP] '
+    history_size: 1
+    hierarchical: False
+
+task:
+  _target_: lightning_transformers.task.nlp.conversation.ConversationBeamer
+  cfg:
+    compute_generate_metrics: False
+    pooling_method: cls
+    task_name: conversation_${task.cfg.pooling_method}
+    scheduler_monitor: val_loss
+    scheduler_mode: min
+    rnn_class: gru
+
+trainer:
+  gpus: 1
+  val_check_interval: 1000
+  max_steps: 50000
+  max_epochs: 100
+  gradient_clip_val: 0.1
+  resume_from_checkpoint: ${trainer.default_root_dir}/last.ckpt
+  default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}/${experiment_name}
+  logger:
+    project: beamer
+
+training:
+  lr: 0.05
+  batch_size: 6
+
+optimizer:
+  weight_decay: 0
+
+experiment_name: ${now:%Y-%m-%d}_${now:%H-%M-%S-%f}
+log: True
+ignore_warnings: True # todo: check warnings before release
+seed: 33
+stage: train # choose from train, test, (predict, interact, to be added)
+fintune_ckpt: null
