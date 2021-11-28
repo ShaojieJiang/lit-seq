@@ -26,7 +26,9 @@ class Seq2SeqTransformer(HFTransformer):
         return loss
 
     def validation_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
-        return self.common_step("val", batch)
+        loss = self.common_step("val", batch)
+        self.log('val_loss', loss)
+        return loss
 
     def test_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         return self.common_step("test", batch)

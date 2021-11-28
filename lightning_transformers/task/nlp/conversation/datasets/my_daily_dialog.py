@@ -66,8 +66,8 @@ class DailyDialog(datasets.GeneratorBasedBuilder):
     __EOU__ = " __eou__ " # get rid of white spaces between turns
     
     def __init__(self, *args, writer_batch_size=None, **kwargs):
-        self.context_delimeter = kwargs.get('delimeter', ' ')
-        kwargs.pop('delimeter')
+        self.context_delimeter = kwargs.pop('history_delimeter', ' ')
+        kwargs.pop('history_size')
         super().__init__(*args, writer_batch_size=writer_batch_size, **kwargs)
 
     def _info(self):
