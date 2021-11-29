@@ -25,7 +25,7 @@ task:
     task_name: conversation_${task.cfg.pooling_method}
     scheduler_monitor: val_loss
     scheduler_mode: min
-    rnn_class: gru
+    rnn_class: rnn
     rnn_share: True
 
 trainer:
@@ -51,4 +51,4 @@ log: True
 ignore_warnings: True # todo: check warnings before release
 seed: 33
 stage: train # choose from train, test, (predict, interact, to be added)
-fintune_ckpt: null
+finetune_ckpt: null
