@@ -137,7 +137,7 @@ class BeamerModel(BlenderbotModel):
             input_ids=decoder_input_ids,
             attention_mask=decoder_attention_mask,
             encoder_hidden_states=encoder_outputs[0],
-            # rnn_states=encoder_outputs.rnn_states,
+            encoder_rnn_states=encoder_outputs.rnn_states,
             encoder_attention_mask=attention_mask,
             head_mask=decoder_head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
@@ -322,6 +322,7 @@ class BeamerDecoder(BlenderbotDecoder):
             )
         self.layers = nn.ModuleList([BeamerDecoderLayer(config, shared_rnn) for _ in range(config.decoder_layers)])
         self.layer_norm = nn.LayerNorm(config.d_model)
+        self.alignment_attn = AlignmentAttention(config.d_model, config.encoder_ffn_dim)
 
         self.init_weights()
 
@@ -330,7 +331,7 @@ class BeamerDecoder(BlenderbotDecoder):
         input_ids=None,
         attention_mask=None,
         encoder_hidden_states=None,
-        rnn_states=None,
+        encoder_rnn_states=None,
         encoder_attention_mask=None,
         head_mask=None,
         cross_attn_head_mask=None,
@@ -386,6 +387,12 @@ class BeamerDecoder(BlenderbotDecoder):
         all_self_attns = () if output_attentions else None
         all_cross_attentions = () if (output_attentions and encoder_hidden_states is not None) else None
         next_decoder_cache = () if use_cache else None
+
+        # project encoder rnn_states to decoder size
+        if encoder_rnn_states is not None:
+            rnn_states = self.alignment_attn(inputs_embeds, encoder_rnn_states, encoder_attention_mask.squeeze(1))
+        else:
+            rnn_states = None
 
         # check if head_mask/cross_attn_head_mask has a correct number of layers specified if desired
         for attn_mask, mask_name in zip([head_mask, cross_attn_head_mask], ["head_mask", "cross_attn_head_mask"]):
@@ -705,3 +712,43 @@ class BeamerRNN(nn.Module):
 @dataclass
 class BeamerBaseOutput(BaseModelOutput):
     rnn_states: Optional[Tuple[torch.FloatTensor]] = None
+
+
+class AlignmentAttention(nn.Module):
+    def __init__(
+        self,
+        embed_dim: int,
+        rnn_state_dim: int,
+        # dropout: float = 0.0,
+        bias: bool = True,
+    ):
+        super().__init__()
+        # self.dropout = dropout
+
+        # only project key vectors from rnn_state_dim to embed_dim
+        self.k_proj = nn.Linear(rnn_state_dim, embed_dim, bias=bias)
+    
+    def forward(
+        self,
+        query,
+        key_value_states,
+        # past_key_states: Optional[torch.Tensor] = None, # used during inference to avoid redundant computing
+        attention_mask: Optional[torch.Tensor] = None,
+    ):
+        key = self.k_proj(key_value_states)
+        
+        tgt_seq_len, emb_sz = query.size()[-2:]
+        src_seq_len = key.size(2)
+        rnn_state_size = key_value_states.size(-1)
+        query = query.repeat(key.size(0), 1, 1, 1)
+        attn_weights = torch.bmm(query.view(-1, tgt_seq_len, emb_sz), key.view(-1, src_seq_len, emb_sz).transpose(1, 2))
+        attn_weights = attn_weights.reshape(key.size(0), key.size(1), tgt_seq_len, src_seq_len)
+        if attention_mask is not None:
+            attn_weights += attention_mask.repeat(key.size(0), 1, 1, 1)
+        attn_weights = nn.functional.softmax(attn_weights, dim=-1)
+
+        # attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
+
+        attn_output = torch.bmm(attn_weights.view(-1, tgt_seq_len, src_seq_len), key_value_states.view(-1, src_seq_len, rnn_state_size))
+        
+        return attn_output.view(key.size(0), key.size(1), tgt_seq_len, rnn_state_size)
