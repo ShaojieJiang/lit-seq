@@ -45,4 +45,4 @@ log: True
 ignore_warnings: True # todo: check warnings before release
 seed: 33
 stage: train # choose from train, test, (predict, interact, to be added)
-fintune_ckpt: null
+finetune_ckpt: null
