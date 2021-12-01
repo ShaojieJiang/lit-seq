@@ -34,7 +34,19 @@ class Seq2SeqTransformer(HFTransformer):
         return self.common_step("test", batch)
 
     def compute_generate_metrics(self, batch, prefix):
-        raise NotImplementedError
+        max_length = self.cfg.val_target_max_length if self.cfg.val_target_max_length else self.model.config.max_length
+        num_beams = self.cfg.num_beams if self.cfg.num_beams else self.model.config.num_beams
+        generated_tokens = self.model.generate(
+            input_ids=batch["input_ids"], attention_mask=batch["attention_mask"],
+            max_length=max_length, num_beams=num_beams,
+        )
+        nidf_emb = self.val_dataloader().dataset.nidf_emb.to(generated_tokens.device)
+        nidf_scores = nidf_emb(generated_tokens).squeeze(-1)
+        row_sum = nidf_scores.sum(dim=1)
+        row_counts = (generated_tokens != 0).sum(dim=1)
+        row_avg = row_sum / row_counts
+
+        self.log(f'{prefix}_nidf', row_avg)
 
     def generate(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> List[str]:
         max_length = self.cfg.val_target_max_length if self.cfg.val_target_max_length else self.model.config.max_length

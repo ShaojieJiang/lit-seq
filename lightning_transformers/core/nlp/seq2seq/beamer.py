@@ -46,11 +46,11 @@ class Seq2SeqBeamer(Seq2SeqTransformer):
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
         pipeline_kwargs: Optional[dict] = None,
         cfg: Optional[LitTaskConfig] = None,
-        seq2seq_cfg: HFSeq2SeqConfig = HFSeq2SeqConfig(),
+        # seq2seq_cfg: HFSeq2SeqConfig = HFSeq2SeqConfig(),
         **model_data_kwargs,
     ) -> None:
         self.save_hyperparameters()
-        self.cfg = seq2seq_cfg
+        # self.cfg = seq2seq_cfg
         model_cls: Type["AutoModel"] = get_class(downstream_model_type)
         config = AutoConfig.from_pretrained(backbone.pretrained_model_name_or_path, **model_data_kwargs)
         model = BeamerForConditionalGeneration(config, cfg)

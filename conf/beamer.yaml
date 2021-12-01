@@ -20,7 +20,6 @@ dataset:
 task:
   _target_: lightning_transformers.task.nlp.conversation.ConversationBeamer
   cfg:
-    compute_generate_metrics: False
     pooling_method: cls
     task_name: conversation_${task.cfg.pooling_method}
     scheduler_monitor: val_loss

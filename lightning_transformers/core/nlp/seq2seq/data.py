@@ -2,10 +2,12 @@ from functools import partial
 from typing import Any, Callable, Optional, Tuple
 
 from datasets import Dataset
+from torch import nn
 from transformers import PreTrainedTokenizerBase, default_data_collator
 
 from lightning_transformers.core.nlp import HFDataModule
 from lightning_transformers.core.nlp.seq2seq import Seq2SeqDataConfig
+from lightning_transformers.core.utils import calc_nidf_on_labels
 
 
 class Seq2SeqDataModule(HFDataModule):
@@ -44,6 +46,13 @@ class Seq2SeqDataModule(HFDataModule):
 
         cols_to_keep = [x for x in ["input_ids", "attention_mask", "labels"] if x in dataset["train"].features]
         dataset.set_format(columns=cols_to_keep)
+        nidf = calc_nidf_on_labels(dataset)
+        nidf_emb = nn.Embedding(max(list(nidf.keys())) + 1, 1)
+        nidf_emb.weight.requires_grad = False
+        for id in range(len(nidf_emb.weight)):
+            nidf_emb.weight[id] = nidf[id]
+        for split in dataset.keys():
+            dataset[split].nidf_emb = nidf_emb
         return dataset
 
     @property

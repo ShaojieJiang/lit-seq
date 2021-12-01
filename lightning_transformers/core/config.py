@@ -52,3 +52,6 @@ class LitTaskConfig:
     activation: Optional[str] = 'relu1'
     rnn_class: Optional[str] = 'gru'
     rnn_share: Optional[bool] = True
+    val_target_max_length: Optional[int] = 128
+    num_beams: Optional[int] = 1
+    compute_generate_metrics: bool = True

@@ -41,19 +41,6 @@ class ConversationTransformer(Seq2SeqTransformer):
         super().__init__(downstream_model_type, *args, cfg=cfg, **kwargs)
         # self.rouge = None
 
-    def compute_generate_metrics(self, batch, prefix):
-        pass
-        # tgt_lns = self.tokenize_labels(batch["labels"])
-        # pred_lns = self.generate(batch["input_ids"], batch["attention_mask"])
-        # result = self.rouge(pred_lns, tgt_lns)
-        # self.log_dict(result, on_step=False, on_epoch=True)
-
-    # def configure_metrics(self, stage: str):
-    #     self.rouge = RougeMetric(
-    #         rouge_newline_sep=self.cfg.rouge_newline_sep,
-    #         use_stemmer=self.cfg.use_stemmer,
-    #     )
-
     def hf_predict(self, *args, **kwargs) -> Any:
         conversation = Conversation(args[0])
         self.hf_pipeline(conversation)

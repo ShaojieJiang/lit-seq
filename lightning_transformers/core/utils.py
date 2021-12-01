@@ -14,8 +14,10 @@
 import inspect
 import os
 import warnings
+from collections import defaultdict
 from typing import Mapping, Optional, Sequence, Type, Union
 
+import numpy as np
 from datasets.arrow_dataset import Dataset
 from datasets.builder import DatasetBuilder
 from datasets.dataset_dict import DatasetDict, IterableDatasetDict
@@ -185,3 +187,29 @@ def validate_resume_path(cfg: DictConfig):
         cfg.trainer.resume_from_checkpoint = None
         
     return cfg
+
+
+def calc_nidf_on_labels(dataset):
+    # calculate idf on label tokens
+    tok_doc_index = defaultdict(set)
+    num_docs = 0
+    for split in dataset.keys():
+        num_docs += len(dataset[split])
+        for id, row in enumerate(dataset[split]):
+            label_tokens = row['labels']
+            doc_id = f'{split}_{id}'
+            for tok in label_tokens:
+                tok_doc_index[tok].add(doc_id)
+    idf = {}
+    for key, val in tok_doc_index.items():
+        idf[key] = np.log(num_docs / (1 + len(val)))
+    idf_vals = np.array(list(idf.values()))
+    min_idf = idf_vals.min()
+    max_idf = idf_vals.max()
+    max_min_diff = max_idf - min_idf
+    # normalise
+    nidf = defaultdict(float)
+    for key, val in idf.items():
+        nidf[key] = (val - min_idf) / max_min_diff
+    
+    return nidf
