@@ -6,7 +6,7 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
     """A base class that integrates all common functions"""
 
     def __init__(self, *args, writer_batch_size=None, **kwargs):
-        self.history_delimeter = kwargs.pop('history_delimeter')
+        self.history_delimiter = kwargs.pop('history_delimiter')
         self.history_size = kwargs.pop('history_size')
         self.hierarchical = kwargs.pop('hierarchical', False)
         if self.hierarchical:
@@ -59,7 +59,7 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                 if self.hierarchical:
                     text = history_to_keep
                 else:
-                    text = self.history_delimeter.join(history_to_keep)
+                    text = self.history_delimiter.join(history_to_keep)
 
                 # if len(history_to_keep) > 1 and type(turn) is str: # example w/o history, not for human data
                 #     last_turn = history_to_keep[0]

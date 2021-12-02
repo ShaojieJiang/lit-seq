@@ -66,6 +66,15 @@ def run(
             max_steps=0, # make sure we don't train the model anymore
             val_check_interval=1.0, # override anything specified in the config files
         )
+    elif cfg.stage == 'interact':
+        trainer = instantiator.trainer(
+            trainer,
+            logger=logger,
+            max_steps=0, # make sure we don't train the model anymore
+            val_check_interval=1.0, # override anything specified in the config files
+        )
+        trainer.fit(model, datamodule=data_module)
+        model.interact()
 
     # manual load
     if cfg.finetune_ckpt:

@@ -5,5 +5,5 @@ _target_: lightning_transformers.task.nlp.conversation.ConversationDataModule
 cfg:
   max_source_length: 128
   max_target_length: 128
-  history_delimeter: '  '
+  history_delimiter: '  '
   padding: False
