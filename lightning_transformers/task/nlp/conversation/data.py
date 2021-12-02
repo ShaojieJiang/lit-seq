@@ -43,7 +43,7 @@ class ConversationDataModule(Seq2SeqDataModule):
                 name=self.cfg.dataset_config_name,
                 cache_dir=self.cfg.cache_dir,
                 data_files=data_files,
-                history_delimeter=self.cfg.history_delimeter,
+                history_delimiter=self.cfg.history_delimiter,
                 history_size=self.cfg.history_size,
             )
             # except: # not a customised dataset

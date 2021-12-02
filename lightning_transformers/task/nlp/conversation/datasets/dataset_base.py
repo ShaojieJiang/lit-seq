@@ -5,7 +5,7 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
     """A base class that integrates all common functions"""
 
     def __init__(self, *args, writer_batch_size=None, **kwargs):
-        self.history_delimeter = kwargs.pop('history_delimeter')
+        self.history_delimiter = kwargs.pop('history_delimiter')
         self.history_size = kwargs.pop('history_size')
         self.hierarchical = kwargs.pop('hierarchical', False)
         if self.hierarchical:
@@ -47,7 +47,7 @@ class DatasetBase(datasets.GeneratorBasedBuilder):
                 if self.hierarchical:
                     context = history_to_keep
                 else:
-                    context = self.history_delimeter.join(history_to_keep)
+                    context = self.history_delimiter.join(history_to_keep)
 
                 yield f'{dialog_id}-{turn_id}', {
                     "context": context,

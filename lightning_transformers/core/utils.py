@@ -84,8 +84,8 @@ def load_dataset_builder(
         data_files=data_files,
     )
     rehash_fields = [hash, script_version]
-    if 'history_delimeter' in config_kwargs:
-        rehash_fields.append(config_kwargs['history_delimeter'])
+    if 'history_delimiter' in config_kwargs:
+        rehash_fields.append(config_kwargs['history_delimiter'])
     hash = hash_python_lines(rehash_fields) # rehasing and consider script version
     builder_cls = import_main_class(dataset_module) # import the class from our own file
 

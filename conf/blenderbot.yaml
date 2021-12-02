@@ -13,7 +13,7 @@ backbone:
 
 dataset:
   cfg:
-    history_delimeter: '  '
+    history_delimiter: '  '
     history_size: 1
     hierarchical: False
 

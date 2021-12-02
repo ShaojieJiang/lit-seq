@@ -13,7 +13,7 @@ backbone:
 
 dataset:
   cfg:
-    history_delimeter: ' [SEP] '
+    history_delimiter: ' [SEP] '
     history_size: 1
     hierarchical: False
 
