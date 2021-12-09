@@ -20,10 +20,14 @@ dataset:
 task:
   _target_: lightning_transformers.task.nlp.conversation.ConversationTransformer
   cfg:
+    compute_generate_metrics: False
     pooling_method: cls
     task_name: conversation_${task.cfg.pooling_method}
     scheduler_monitor: val_loss
     scheduler_mode: min
+    no_repeat_ngram_size: 3 # 3 by default
+    encoder_no_repeat_ngram_size: 3 # 3 by default
+    min_length: 20 # 20 by default
 
 trainer:
   gpus: 1

@@ -66,7 +66,12 @@ class ConversationTransformer(Seq2SeqTransformer):
         while True:
             user_message = input("Your Message: ")
             conv.add_user_input(user_message)
-            self.hf_pipeline(conv)
+            self.hf_pipeline(
+                conv,
+                no_repeat_ngram_size=self.cfg.no_repeat_ngram_size,
+                encoder_no_repeat_ngram_size=self.cfg.encoder_no_repeat_ngram_size,
+                min_length=self.cfg.min_length,
+            )
             
             print("Blenderbot: ", conv.generated_responses[-1])
 
