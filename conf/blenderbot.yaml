@@ -16,6 +16,7 @@ dataset:
     history_delimiter: '  '
     history_size: 1
     hierarchical: False
+    eval_batch_size: 12
 
 task:
   _target_: lightning_transformers.task.nlp.conversation.ConversationTransformer

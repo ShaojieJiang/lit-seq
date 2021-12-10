@@ -18,6 +18,7 @@ from typing import Optional
 @dataclass
 class TransformerDataConfig:
     batch_size: int = 32
+    eval_batch_size: int = 32
     num_workers: int = 0
 
 
