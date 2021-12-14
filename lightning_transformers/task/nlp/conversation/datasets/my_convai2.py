@@ -5,26 +5,19 @@ import os
 
 import datasets
 
-from lightning_transformers.task.nlp.text_regression.datasets import dataset_base
+from lightning_transformers.task.nlp.conversation.datasets import dataset_base
 
 # TODO(blended_skill_talk): BibTeX citation
 _CITATION = """\
-@article{zhang2018personalizing,
-  title={Personalizing dialogue agents: I have a dog, do you have pets too?},
-  author={Zhang, Saizheng and Dinan, Emily and Urbanek, Jack and Szlam, Arthur and Kiela, Douwe and Weston, Jason},
-  journal={arXiv preprint arXiv:1801.07243},
-  year={2018}
-}
 """
 
 # TODO(blended_skill_talk):
 _DESCRIPTION = """\
-A dataset of 7k conversations explicitly designed to exhibit multiple conversation modes: displaying personality, having empathy, and demonstrating knowledge.
 """
-_URL = "http://parl.ai/downloads/personachat/personachat.tgz"
+_URL = "http://parl.ai/downloads/convai2/convai2_fix_723.tgz"
 
 
-class Personachat(dataset_base.DatasetBase):
+class ConvAI2Conversation(dataset_base.DatasetBase):
     """TODO(blended_skill_talk): Short description of my dataset."""
 
     # TODO(blended_skill_talk): Set up version.
@@ -42,7 +35,7 @@ class Personachat(dataset_base.DatasetBase):
             # builder.as_dataset.
             supervised_keys=None,
             # Homepage of the dataset for documentation
-            homepage="https://github.com/facebookresearch/ParlAI/tree/main/parlai/tasks/personachat",
+            homepage="",
             citation=_CITATION,
         )
 
@@ -52,22 +45,21 @@ class Personachat(dataset_base.DatasetBase):
         # dl_manager is a datasets.download.DownloadManager that can be used to
         # download and extract URLs
         data_dir = dl_manager.download_and_extract(_URL)
-        data_dir += '/personachat'
         return [
             datasets.SplitGenerator(
                 name=datasets.Split.TRAIN,
                 # These kwargs will be passed to _generate_examples
-                gen_kwargs={"filepath": os.path.join(data_dir, "train_both_original.txt")},
+                gen_kwargs={"filepath": os.path.join(data_dir, "train_both_original_no_cands.txt")},
             ),
             datasets.SplitGenerator(
                 name=datasets.Split.VALIDATION,
                 # These kwargs will be passed to _generate_examples
-                gen_kwargs={"filepath": os.path.join(data_dir, "valid_both_original.txt")},
+                gen_kwargs={"filepath": os.path.join(data_dir, "valid_both_original_no_cands.txt")},
             ),
             datasets.SplitGenerator(
                 name=datasets.Split.TEST,
                 # These kwargs will be passed to _generate_examples
-                gen_kwargs={"filepath": os.path.join(data_dir, "test_both_original.txt")},
+                gen_kwargs={"filepath": os.path.join(data_dir, "valid_both_original_no_cands.txt")},
             ),
         ]
 
@@ -86,7 +78,7 @@ class Personachat(dataset_base.DatasetBase):
                         current_dialog = []
                     # current_dialog.append(line[2:])
                 fields = line.split('\t')
-                if len(fields) == 4: # a dialog line
+                if len(fields) == 2: # a dialog line
                     # index first space
                     ind = fields[0].index(' ')
                     current_dialog.append(fields[0][ind+1:])

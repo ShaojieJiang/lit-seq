@@ -5,7 +5,7 @@ import os
 
 import datasets
 
-from lightning_transformers.task.nlp.text_regression.datasets import dataset_base
+from lightning_transformers.task.nlp.conversation.datasets import dataset_base
 
 # TODO(blended_skill_talk): BibTeX citation
 _CITATION = """\
