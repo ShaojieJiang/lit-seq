@@ -13,6 +13,7 @@
 # limitations under the License.
 import inspect
 import os
+import re
 import warnings
 from typing import Mapping, Optional, Sequence, Type, Union
 
@@ -185,3 +186,93 @@ def validate_resume_path(cfg: DictConfig):
         cfg.trainer.resume_from_checkpoint = None
         
     return cfg
+
+
+# This function is copied from ParlAI
+def normalize_personachat_text(text: str, version=1) -> str:
+
+    def uppercase(string: str) -> str:
+        if len(string) == 0:
+            return string
+        else:
+            return string[0].upper() + string[1:]
+    switch_list = [(' .', '.'), (' ,', ','), (' ?', '?'), (' !', '!'), (" ' ", "'")]
+
+    # add spaces so that words and punctuation can be seaprated
+    new_text = text.lower()
+
+    # normalize in case of human:
+    for new, old in switch_list:
+        new_text = new_text.replace(old, new).replace('  ', ' ')
+
+    # split on punctuation to find sentence boundaries
+    # capitalize stuff
+    tokens = new_text.split(' ')
+    for i in range(len(tokens)):
+        if i == 0:
+            tokens[i] = uppercase(tokens[i])
+        elif tokens[i] in ('i', "i'm", "i've", "i'll", "i'd"):
+            tokens[i] = uppercase(tokens[i])
+        elif tokens[i] in '?.!' and i < len(tokens) - 1:
+            tokens[i + 1] = uppercase(tokens[i + 1])
+    new_text = ' '.join(tokens)
+    new_text = ' ' + new_text + ' '
+
+    for tup in switch_list:
+        new_text = new_text.replace(tup[0], tup[1])
+
+    # get rid of surrounding whitespace
+    new_text = new_text.strip()
+    new_text = new_text.replace('  ', ' ')
+
+    if version > 1 and new_text and new_text[-1] not in '!.?)"\'':
+        new_text += '.'
+
+    return new_text
+
+
+def normalize_dailydialog_text(text: str, version=1) -> str:
+    replace_list = [
+        ("’", "'"), ("\ '", " '"), ("”", '"'), ("“", '"'),
+        (" ' d ", "'d "), (" ' ll ", "'ll "), (" ' s ", "'s "),
+        (" ' t ", "'t "), (" ' re ", "'re "), (" ' Ve ", "'ve "),
+        (" ' m ", "'m "),
+    ]
+    new_text = text
+    for old, new in replace_list:
+        new_text = new_text.replace(old, new)
+
+    # quotes
+    quotes = re.findall(r"( ' [\w ]+ ')|( \" [\w+ ]+ \")", new_text)
+    for quote_tuple in quotes:
+        if quote_tuple[0]:
+            normalized = ' ' + quote_tuple[0].replace("' ", "'").replace(" '", "'")
+            new_text = new_text.replace(quote_tuple[0], normalized)
+
+        if quote_tuple[1]:
+            normalized = ' ' + quote_tuple[1].replace('" ', '"').replace(' "', '"')
+            new_text = new_text.replace(quote_tuple[1], normalized)
+    
+    # parantheses
+    parans = re.findall(r" \( .+ \)", new_text)
+    for paran in parans:
+        normalized = ' ' + paran.replace("( ", "(").replace(" )", ")")
+        new_text = new_text.replace(paran, normalized)
+    
+    switch_list = [
+        ('.', '. '), (' .', '.'), (' ,', ','), (' ?', '?'), (' !', '!'),
+        (' -', '-'), ('- ', '-'), ('$ ', '$'), (' %', '%'), (' / ', '/'),
+        (" __eou__ ", "\t"), (" __eou__", ""),
+    ]
+
+    # abbreviattions
+    # abbr = set(re.findall(r" [a-zA-Z]\.", new_text))
+
+    # normalize in case of human:
+    for old, new in switch_list:
+        new_text = new_text.replace(old, new).replace('  ', ' ')
+
+    # get rid of surrounding whitespace
+    new_text = new_text.strip()
+
+    return new_text

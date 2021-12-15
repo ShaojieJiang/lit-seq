@@ -20,8 +20,8 @@ from zipfile import ZipFile
 
 import datasets
 
+from lightning_transformers.core.utils import normalize_dailydialog_text
 from lightning_transformers.task.nlp.text_regression.datasets import dataset_base
-
 
 _CITATION = """\
 @InProceedings{li2017dailydialog,
@@ -64,7 +64,7 @@ emotion_label = {
 class DailyDialog(dataset_base.DatasetBase):
     """DailyDialog: A Manually Labelled Multi-turn Dialogue Dataset"""
 
-    VERSION = datasets.Version("1.0.2") # norm to [0, 1]
+    VERSION = datasets.Version("1.0.3")
 
     __EOU__ = " __eou__ " # get rid of white spaces between turns
 
@@ -131,9 +131,11 @@ class DailyDialog(dataset_base.DatasetBase):
             emotion_path, "r", encoding="utf-8"
         ) as emotion:
             dialogs = []
-            for (line_f, line_act, line_emotion) in zip(f, act, emotion): # not using acts or emotions for now
+            text = f.read()
+            norm_text = normalize_dailydialog_text(text)
+            for (line_f, line_act, line_emotion) in zip(norm_text.split('\n'), act, emotion): # not using acts or emotions for now
                 if len(line_f.strip()) == 0:
                     break
-                dialog = line_f.replace(' __eou__\n', '').split(self.__EOU__) # get rid of the last __eou__ before splitting
+                dialog = line_f.strip().split('\t')
                 dialogs.append(dialog)
             return self._common_generate_examples(dialogs)

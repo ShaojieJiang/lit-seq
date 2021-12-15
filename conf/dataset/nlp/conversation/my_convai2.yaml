@@ -1,0 +1,6 @@
+# @package dataset
+defaults:
+  - /dataset/nlp/conversation/default
+_target_: lightning_transformers.task.nlp.conversation.ConversationDataModule
+cfg:
+  dataset_name: my_convai2

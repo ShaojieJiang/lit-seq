@@ -4,7 +4,7 @@
 import os
 
 import datasets
-
+from lightning_transformers.core.utils import normalize_personachat_text as normalize_text
 from lightning_transformers.task.nlp.text_regression.datasets import dataset_base
 
 # TODO(blended_skill_talk): BibTeX citation
@@ -28,7 +28,7 @@ class Personachat(dataset_base.DatasetBase):
     """TODO(blended_skill_talk): Short description of my dataset."""
 
     # TODO(blended_skill_talk): Set up version.
-    VERSION = datasets.Version("1.0.2") # norm to [0, 1]
+    VERSION = datasets.Version("1.0.3")
 
     def _info(self):
         # TODO(blended_skill_talk): Specifies the datasets.DatasetInfo object
@@ -89,8 +89,8 @@ class Personachat(dataset_base.DatasetBase):
                 if len(fields) == 4: # a dialog line
                     # index first space
                     ind = fields[0].index(' ')
-                    current_dialog.append(fields[0][ind+1:])
-                    current_dialog.append(fields[1])
+                    current_dialog.append(normalize_text(fields[0][ind+1:]))
+                    current_dialog.append(normalize_text(fields[1]))
             
             # add last dialog
             dialogs.append(current_dialog)
