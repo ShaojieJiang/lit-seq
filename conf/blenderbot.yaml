@@ -21,14 +21,15 @@ dataset:
 task:
   _target_: lightning_transformers.task.nlp.conversation.ConversationTransformer
   cfg:
-    compute_generate_metrics: False
+    compute_generate_metrics: True
     pooling_method: cls
-    task_name: conversation_${task.cfg.pooling_method}
+    task_name: conversation_repetition_reduction
     scheduler_monitor: val_loss
     scheduler_mode: min
     no_repeat_ngram_size: 3 # 3 by default
     encoder_no_repeat_ngram_size: 3 # 3 by default
     min_length: 20 # 20 by default
+    num_beams: 10 # 10 by default
 
 trainer:
   gpus: 1
@@ -39,7 +40,7 @@ trainer:
   resume_from_checkpoint: ${trainer.default_root_dir}/last.ckpt
   default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}/${experiment_name}
   logger:
-    project: beamer
+    project: tldr
 
 training:
   lr: 0.05

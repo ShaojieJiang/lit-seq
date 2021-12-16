@@ -1,0 +1,15 @@
+defaults: # loads default configs
+  - blenderbot
+
+task:
+  cfg:
+    no_repeat_ngram_size: 0 # 3 by default
+    encoder_no_repeat_ngram_size: 0 # 3 by default
+    min_length: 0 # 20 by default
+    num_beams: 1 # 10 by default
+    norm_space: True
+    padding_mask: True # mask for padding tokens
+    identical_mask: True # mask for identical tokens
+    distance: 2-norm # cosine, 0-norm, 1-norm, 2-norm...
+    disparate_alpha: 10 # coefficient for similarity loss
+    disparate_space: hidden # logits
