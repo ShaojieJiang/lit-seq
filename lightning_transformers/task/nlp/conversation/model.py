@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import random
 from collections import Counter
 from typing import Any, List
 
@@ -45,6 +46,9 @@ class ConversationTransformer(Seq2SeqTransformer):
         self.criterion = torch.nn.CrossEntropyLoss(reduction='none')
 
     def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
+        if type(batch) == list: # multi-tasking
+            choice = random.randrange(0, len(batch))
+            batch = batch[choice]
         return self.common_step('train', batch)
 
     def validation_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
@@ -71,7 +75,8 @@ class ConversationTransformer(Seq2SeqTransformer):
             self.log_dict(
                 {
                     f"{prefix}_loss": ce_loss,
-                }
+                },
+                add_dataloader_idx=False,
             )
             return ce_loss
         else:
@@ -99,7 +104,7 @@ class ConversationTransformer(Seq2SeqTransformer):
                 tokens_mask = non_padding.float().unsqueeze(-1).bmm(non_padding.float().unsqueeze(1)).int()
                 sim_mask *= tokens_mask
             
-            if self.cfg.identical_mask:
+            if self.cfg.identical_mask: # id_mask entails padding mask
                 different_tokens = (labels.unsqueeze(-1) != labels.unsqueeze(1)).int()
                 sim_mask *= different_tokens
 
@@ -109,7 +114,8 @@ class ConversationTransformer(Seq2SeqTransformer):
                 {
                     f"{prefix}_loss": ce_loss,
                     f"{prefix}_similarity": similarity,
-                }
+                },
+                add_dataloader_idx=False,
             )
             return ce_loss + self.cfg.disparate_alpha * similarity # the actual loss to backprop
 
@@ -131,21 +137,35 @@ class ConversationTransformer(Seq2SeqTransformer):
                 f'{prefix}_rep_2': 1 - counts['uniq_bigrams'] / counts['num_bigrams'],
                 f'{prefix}_rep_3': 1 - counts['uniq_trigrams'] / counts['num_trigrams'],
                 f'{prefix}_rep_4': 1 - counts['uniq_fourgrams'] / counts['num_fourgrams'],
-            }
+            },
+            add_dataloader_idx=False,
         )
         # aggregation strategy 2: calc the repetition rate of each example, then average
         # Update: This 2nd strategy doesn't expose the problem well
 
     def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        val_dataloader = self.val_dataloader()
+        if isinstance(val_dataloader, list) and len(val_dataloader) > 1:
+            # flatten the outputs for different datasets
+            outputs = [batch for dset_output in outputs for batch in dset_output]
+            
         self.aggregate_outputs(outputs, 'val')
 
     def test_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        test_dataloader = self.test_dataloader()
+        if isinstance(test_dataloader, list) and len(test_dataloader) > 1:
+            # flatten the outputs for different datasets
+            outputs = [batch for dset_output in outputs for batch in dset_output]
+
         self.aggregate_outputs(outputs, 'test')
 
     def compute_generate_metrics(self, batch, prefix):
         _, generated_tokens = self.generate(batch["input_ids"], batch["attention_mask"])
         ngram_counts = self.get_unique_total_ngrams(generated_tokens)
-        self.log(f'{prefix}_pred_len', (generated_tokens[:, 1:] != 0).sum(dim=-1))
+        self.log(
+            f'{prefix}_pred_len', (generated_tokens[:, 1:] != 0).sum(dim=-1),
+            add_dataloader_idx=False,
+        )
         return ngram_counts
 
     def get_unique_total_ngrams(self, batch_generations):

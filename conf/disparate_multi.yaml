@@ -1,0 +1,20 @@
+defaults: # loads default configs
+  - disparate
+  - override dataset: nlp/conversation/multi
+  - override scheduler: constant_schedule_with_warmup
+
+scheduler:
+  num_warmup_steps: 3000
+
+dataset:
+  cfg:
+    dataset_components: my_daily_dialog:my_personachat:my_empathetic_dialogues:my_wizard_of_wikipedia:my_blended_skill_talk
+
+training:
+  lr: 1e-5
+
+trainer:
+  max_steps: 500000
+  val_check_interval: 1000
+  limit_val_batches: 200
+  # limit_test_batches: 2
