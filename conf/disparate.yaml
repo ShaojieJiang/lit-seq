@@ -1,5 +1,10 @@
 defaults: # loads default configs
   - blenderbot
+  - override optimizer: adam
+  - override scheduler: constant_schedule_with_warmup
+
+scheduler:
+  num_warmup_steps: 3000
 
 task:
   cfg:
