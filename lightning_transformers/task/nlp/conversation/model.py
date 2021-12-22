@@ -71,53 +71,54 @@ class ConversationTransformer(Seq2SeqTransformer):
         loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1)).view(labels.size())
         ce_loss = loss.sum() / non_padding.int().sum()
 
-        if self.cfg.distance == 'none':
-            self.log_dict(
-                {
-                    f"{prefix}_loss": ce_loss,
-                },
-                add_dataloader_idx=False,
-            )
-            return ce_loss
-        else:
-            # penalize pairwise similarity of last decoder hidden states
-            if self.cfg.disparate_space == 'hidden':
-                output_vectors = outputs.decoder_hidden_states[-1] # last decoder hidden states
-            elif self.cfg.disparate_space == 'logits':
-                output_vectors = logits
+        # penalize pairwise similarity of last decoder hidden states
+        if self.cfg.disparate_space == 'hidden':
+            output_vectors = outputs.decoder_hidden_states[-1] # last decoder hidden states
+        elif self.cfg.disparate_space == 'logits':
+            output_vectors = logits
 
-            # normalize to unit vectors
-            if self.cfg.norm_space or self.cfg.distance == 'cosine':
-                output_vectors = F.normalize(output_vectors, dim=-1)
-                
-            # pairwise cosine similarity
-            if self.cfg.distance == 'cosine':
-                pdist = output_vectors.bmm(output_vectors.transpose(1, 2))
-            # p-norm distance
-            elif self.cfg.distance.endswith('-norm'):
-                p = int(self.cfg.distance.split('-')[0])
-                pdist = - torch.cdist(output_vectors, output_vectors, p=p) # negate the distance to learn to enlarge
+        # we always need to normalize to unit vectors, because scaled hidden states results in the same rankings
+        output_vectors = F.normalize(output_vectors, dim=-1)
 
-            sim_mask = 1 - torch.eye(logits.size(1)).unsqueeze(0).to(pdist.device) # don't penalise self similarity
-            sim_mask = sim_mask.repeat(pdist.size(0), 1, 1)
-            if self.cfg.padding_mask:
-                tokens_mask = non_padding.float().unsqueeze(-1).bmm(non_padding.float().unsqueeze(1)).int()
-                sim_mask *= tokens_mask
+        sim_mask = 1 - torch.eye(logits.size(1)).unsqueeze(0).to(output_vectors.device) # don't penalise self similarity
+        sim_mask = sim_mask.repeat(output_vectors.size(0), 1, 1)
+        if self.cfg.padding_mask:
+            tokens_mask = non_padding.float().unsqueeze(-1).bmm(non_padding.float().unsqueeze(1)).int()
+            sim_mask *= tokens_mask
+        
+        if self.cfg.identical_mask: # id_mask entails padding mask
+            different_tokens = (labels.unsqueeze(-1) != labels.unsqueeze(1)).int()
+            sim_mask *= different_tokens
             
-            if self.cfg.identical_mask: # id_mask entails padding mask
-                different_tokens = (labels.unsqueeze(-1) != labels.unsqueeze(1)).int()
-                sim_mask *= different_tokens
+        # pairwise cosine similarity
+        if self.cfg.distance == 'cosine' or not self.cfg.disparate: # report cosine when not using disparate regulariser
+            pdist = output_vectors.bmm(output_vectors.transpose(1, 2))
+            distance = (pdist * sim_mask).sum() / sim_mask.sum()
+            similarity = distance
+        # p-norm distance
+        elif self.cfg.distance.endswith('-norm'):
+            p = int(self.cfg.distance.split('-')[0])
+            pdist = - torch.cdist(output_vectors, output_vectors, p=p) # negate the distance to learn to enlarge
+            distance = (pdist * sim_mask).sum() / sim_mask.sum() # represents the similarity among last hidden states
 
-            similarity = (pdist * sim_mask).sum() / sim_mask.sum() # represents the similarity among last hidden states
+            if self.cfg.distance == '2-norm': # report cosine similarity for 2-norm
+                cos_sim = (2 - pdist.pow(2)) / 2
+                similarity = (cos_sim * sim_mask).sum() / sim_mask.sum()
+            else:
+                similarity = - distance
 
-            self.log_dict(
-                {
-                    f"{prefix}_loss": ce_loss,
-                    f"{prefix}_similarity": similarity,
-                },
-                add_dataloader_idx=False,
-            )
-            return ce_loss + self.cfg.disparate_alpha * similarity # the actual loss to backprop
+        self.log_dict(
+            {
+                f"{prefix}_loss": ce_loss,
+                f"{prefix}_similarity": similarity,
+            },
+            add_dataloader_idx=False,
+        )
+        
+        if self.cfg.disparate:
+            return ce_loss + self.cfg.disparate_alpha * distance # the actual loss to backprop
+        else:
+            return ce_loss
 
     def common_eval_step(self, prefix: str, batch: Any) -> torch.Tensor:
         if self.cfg.compute_generate_metrics:
@@ -133,10 +134,10 @@ class ConversationTransformer(Seq2SeqTransformer):
                 counts.update(res)
         self.log_dict(
             {
-                f'{prefix}_rep_1': 1 - counts['uniq_unigrams'] / counts['num_unigrams'],
-                f'{prefix}_rep_2': 1 - counts['uniq_bigrams'] / counts['num_bigrams'],
-                f'{prefix}_rep_3': 1 - counts['uniq_trigrams'] / counts['num_trigrams'],
-                f'{prefix}_rep_4': 1 - counts['uniq_fourgrams'] / counts['num_fourgrams'],
+                f'{prefix}_rep_1': 1 - (counts['uniq_unigrams'] + 1e-8) / (counts['num_unigrams'] + 1e-8),
+                f'{prefix}_rep_2': 1 - (counts['uniq_bigrams'] + 1e-8) / (counts['num_bigrams'] + 1e-8),
+                f'{prefix}_rep_3': 1 - (counts['uniq_trigrams'] + 1e-8) / (counts['num_trigrams'] + 1e-8),
+                f'{prefix}_rep_4': 1 - (counts['uniq_fourgrams'] + 1e-8) / (counts['num_fourgrams'] + 1e-8),
             },
             add_dataloader_idx=False,
         )

@@ -12,7 +12,7 @@ task:
     encoder_no_repeat_ngram_size: 0 # 3 by default
     min_length: 0 # 20 by default
     num_beams: 1 # 10 by default
-    norm_space: True
+    disparate: True # toggle for using the disparate regulariser
     padding_mask: True # mask for padding tokens
     identical_mask: True # mask for identical tokens
     distance: 2-norm # cosine, 0-norm, 1-norm, 2-norm...
