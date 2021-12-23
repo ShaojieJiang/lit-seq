@@ -70,6 +70,10 @@ class ConversationTransformer(Seq2SeqTransformer):
         # calculate CE loss
         loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1)).view(labels.size())
         ce_loss = loss.sum() / non_padding.int().sum()
+        self.log(
+            f"{prefix}_loss", ce_loss,
+            add_dataloader_idx=False,
+        )
 
         # penalize pairwise similarity of last decoder hidden states
         if self.cfg.disparate_space == 'hidden':
@@ -92,31 +96,36 @@ class ConversationTransformer(Seq2SeqTransformer):
             
         # pairwise cosine similarity
         if self.cfg.distance == 'cosine' or not self.cfg.disparate: # report cosine when not using disparate regulariser
-            pdist = output_vectors.bmm(output_vectors.transpose(1, 2))
-            distance = (pdist * sim_mask).sum() / sim_mask.sum()
-            similarity = distance
+            psim = output_vectors.bmm(output_vectors.transpose(1, 2))
+            cos_sim = (psim * sim_mask).sum() / sim_mask.sum() # range [-1, 1]
+            sim_loss = 1 + cos_sim # range [0, 2]
         # p-norm distance
         elif self.cfg.distance.endswith('-norm'):
             p = int(self.cfg.distance.split('-')[0])
-            pdist = - torch.cdist(output_vectors, output_vectors, p=p) # negate the distance to learn to enlarge
-            distance = (pdist * sim_mask).sum() / sim_mask.sum() # represents the similarity among last hidden states
+            pdist = torch.cdist(output_vectors, output_vectors, p=p)
+            distance = (pdist * sim_mask).sum() / sim_mask.sum()
 
             if self.cfg.distance == '2-norm': # report cosine similarity for 2-norm
-                cos_sim = (2 - pdist.pow(2)) / 2
-                similarity = (cos_sim * sim_mask).sum() / sim_mask.sum()
+                psim = (2 - pdist.pow(2)) / 2
+                cos_sim = (psim * sim_mask).sum() / sim_mask.sum()
+                sim_loss = 2 - distance # range [0, 2]
             else:
                 similarity = - distance
+                sim_loss = similarity
 
-        self.log_dict(
-            {
-                f"{prefix}_loss": ce_loss,
-                f"{prefix}_similarity": similarity,
-            },
-            add_dataloader_idx=False,
-        )
+        if self.cfg.distance in ['cosine', '2-norm'] or not self.cfg.disparate: # log cosine similarity
+            self.log(
+                f"{prefix}_similarity", cos_sim,
+                add_dataloader_idx=False,
+            )
+        else: # log negative n-norm
+            self.log(
+                f"{prefix}_neg_{self.cfg.distance}", similarity,
+                add_dataloader_idx=False,
+            )
         
         if self.cfg.disparate:
-            return ce_loss + self.cfg.disparate_alpha * distance # the actual loss to backprop
+            return ce_loss + self.cfg.disparate_alpha * sim_loss # the actual loss to backprop
         else:
             return ce_loss
 
