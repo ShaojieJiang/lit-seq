@@ -7,11 +7,18 @@ dataset:
     batch_size: 10
     dataset_components: my_daily_dialog:my_personachat:my_empathetic_dialogues:my_wizard_of_wikipedia:my_blended_skill_talk
 
+task:
+  cfg:
+    task_name: conversation_rr
+
 training:
   lr: 1e-5
+  run_test_after_fit: False
 
 trainer:
-  max_steps: 500000
+  max_steps: 50000
   val_check_interval: 1000
   limit_val_batches: 200
   # limit_test_batches: 2
+  logger:
+    project: disparate
