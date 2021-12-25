@@ -10,7 +10,7 @@ task:
   cfg:
     no_repeat_ngram_size: 0 # 3 by default
     encoder_no_repeat_ngram_size: 0 # 3 by default
-    min_length: 0 # 20 by default
+    min_length: 20 # 20 by default
     num_beams: 1 # 10 by default
     disparate: True # toggle for using the disparate regulariser
     padding_mask: True # mask for padding tokens
