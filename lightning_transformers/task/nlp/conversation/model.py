@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from hydra.utils import get_class
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from torch import nn
-from transformers import AutoModel, BlenderbotForConditionalGeneration, BlenderbotModel, Conversation
+from transformers import AutoConfig, AutoModel, BlenderbotForConditionalGeneration, BlenderbotModel, Conversation
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
 from transformers.models.blenderbot.configuration_blenderbot import BlenderbotConfig
 from transformers.models.blenderbot.modeling_blenderbot import (
@@ -61,6 +61,8 @@ class ConversationTransformer(Seq2SeqTransformer):
         **model_data_kwargs,
     ) -> None:
         self.save_hyperparameters()
+        model_config = AutoConfig.from_pretrained(backbone.pretrained_model_name_or_path)
+        self.num_attention_heads = model_config.num_attention_heads
         if cfg.strengthen_position:
             model = BlenderbotForConditionalGenerationSPOS.from_pretrained(backbone.pretrained_model_name_or_path)
         else:
@@ -103,39 +105,63 @@ class ConversationTransformer(Seq2SeqTransformer):
         )
 
         # penalize pairwise similarity of last decoder hidden states
-        if self.cfg.disparate_space == 'hidden':
-            output_vectors = outputs.decoder_hidden_states[-1] # last decoder hidden states
-        elif self.cfg.disparate_space == 'logits':
-            output_vectors = logits
+        # if self.cfg.disparate_space == 'hidden':
+        output_vectors = outputs.decoder_hidden_states[-1] # last decoder hidden states
+        dimensions = output_vectors.size()
+        hd = int(dimensions[-1] / self.num_attention_heads)
+        output_vectors = output_vectors.view(dimensions[0], self.num_attention_heads, dimensions[1], hd)
+        # elif self.cfg.disparate_space == 'logits':
+            # output_vectors = logits
 
         # we always need to normalize to unit vectors, because scaled hidden states results in the same rankings
         output_vectors = F.normalize(output_vectors, dim=-1)
 
-        sim_mask = 1 - torch.eye(logits.size(1)).unsqueeze(0).to(output_vectors.device) # don't penalise self similarity
-        sim_mask = sim_mask.repeat(output_vectors.size(0), 1, 1)
+        sim_mask = 1 - torch.eye(dimensions[1]).view(1, 1, dimensions[1], dimensions[1]).to(output_vectors.device) # don't penalise self similarity
+        sim_mask = sim_mask.repeat(output_vectors.size(0), output_vectors.size(1), 1, 1)
         if self.cfg.padding_mask:
             tokens_mask = non_padding.float().unsqueeze(-1).bmm(non_padding.float().unsqueeze(1)).int()
-            sim_mask *= tokens_mask
+            sim_mask *= tokens_mask.unsqueeze(1)
         
         if self.cfg.identical_mask: # id_mask entails padding mask
             different_tokens = (labels.unsqueeze(-1) != labels.unsqueeze(1)).int()
-            sim_mask *= different_tokens
+            sim_mask *= different_tokens.unsqueeze(1)
             
         # pairwise cosine similarity
         if self.cfg.distance == 'cosine' or not self.cfg.disparate: # report cosine when not using disparate regulariser
-            psim = output_vectors.bmm(output_vectors.transpose(1, 2))
-            cos_sim = (psim * sim_mask).sum() / sim_mask.sum() # range [-1, 1]
-            sim_loss = 1 + cos_sim # range [0, 2]
+            pdist = torch.cdist(output_vectors, output_vectors, p=2)
+            psim = (2 - pdist.pow(2)) / 2
+            # psim = output_vectors.bmm(output_vectors.transpose(1, 2))
+            if self.cfg.disparate_aggregation == 'sum':
+                cos_sim = (psim * sim_mask).sum() / sim_mask[:, 0, :, :].sum()
+                sim_loss = self.num_attention_heads + cos_sim
+            elif self.cfg.disparate_aggregation == 'mean':
+                cos_sim = (psim * sim_mask).sum() / sim_mask.sum()
+                sim_loss = 1 + cos_sim # range [0, 2]
+            elif self.cfg.disparate_aggregation == 'max':
+                cos_sim = (psim * sim_mask).max(dim=1)[0].sum() / sim_mask[:, 0, :, :].sum()
+                sim_loss = 1 + cos_sim # range [0, 2]
         # p-norm distance
         elif self.cfg.distance.endswith('-norm'):
             p = int(self.cfg.distance.split('-')[0])
             pdist = torch.cdist(output_vectors, output_vectors, p=p)
-            distance = (pdist * sim_mask).sum() / sim_mask.sum()
+            if self.cfg.disparate_aggregation == 'sum':
+                distance = (pdist * sim_mask).sum() / sim_mask[:, 0, :, :].sum() # sum over heads
+            elif self.cfg.disparate_aggregation == 'mean':
+                distance = (pdist * sim_mask).sum() / sim_mask.sum() # average over heads
+            elif self.cfg.disparate_aggregation == 'max': # max similarity equals min distance
+                distance = (pdist * sim_mask).min(dim=1)[0].sum() / sim_mask[:, 0, :, :].sum() # min pooling over heads
 
             if self.cfg.distance == '2-norm': # report cosine similarity for 2-norm
                 psim = (2 - pdist.pow(2)) / 2
-                cos_sim = (psim * sim_mask).sum() / sim_mask.sum()
-                sim_loss = 2 - distance # range [0, 2]
+                if self.cfg.disparate_aggregation == 'sum':
+                    cos_sim = (psim * sim_mask).sum() / sim_mask[:, 0, :, :].sum()
+                    sim_loss = 2*self.num_attention_heads - distance # range [0, 2]
+                elif self.cfg.disparate_aggregation == 'mean':
+                    cos_sim = (psim * sim_mask).sum() / sim_mask.sum()
+                    sim_loss = 2 - distance # range [0, 2]
+                elif self.cfg.disparate_aggregation == 'max':
+                    cos_sim = (psim * sim_mask).max(dim=1)[0].sum() / sim_mask[:, 0, :, :].sum()
+                    sim_loss = 2 - distance # range [0, 2]
             else:
                 similarity = - distance
                 sim_loss = similarity

@@ -18,4 +18,4 @@ task:
     distance: 2-norm # cosine, 0-norm, 1-norm, 2-norm...
     disparate_alpha: 10 # coefficient for similarity loss
     disparate_space: hidden # logits
-    strengthen_position: True # whether to strengthen position embedding at each decoder layer
+    strengthen_position: False # whether to strengthen position embedding at each decoder layer
