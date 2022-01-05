@@ -140,6 +140,8 @@ class ConversationTransformer(Seq2SeqTransformer):
             elif self.cfg.disparate_aggregation == 'max':
                 cos_sim = (psim * sim_mask).max(dim=1)[0].sum() / sim_mask[:, 0, :, :].sum()
                 sim_loss = 1 + cos_sim # range [0, 2]
+            
+            cos_sim = (psim * sim_mask).sum() / sim_mask.sum() # for reporting
         # p-norm distance
         elif self.cfg.distance.endswith('-norm'):
             p = int(self.cfg.distance.split('-')[0])
@@ -153,14 +155,14 @@ class ConversationTransformer(Seq2SeqTransformer):
 
             if self.cfg.distance == '2-norm': # report cosine similarity for 2-norm
                 psim = (2 - pdist.pow(2)) / 2
+                cos_sim = (psim * sim_mask).sum() / sim_mask.sum()
                 if self.cfg.disparate_aggregation == 'sum':
-                    cos_sim = (psim * sim_mask).sum() / sim_mask[:, 0, :, :].sum()
+                    # cos_sim = (psim * sim_mask).sum() / sim_mask[:, 0, :, :].sum()
                     sim_loss = 2*self.num_attention_heads - distance # range [0, 2]
                 elif self.cfg.disparate_aggregation == 'mean':
-                    cos_sim = (psim * sim_mask).sum() / sim_mask.sum()
                     sim_loss = 2 - distance # range [0, 2]
                 elif self.cfg.disparate_aggregation == 'max':
-                    cos_sim = (psim * sim_mask).max(dim=1)[0].sum() / sim_mask[:, 0, :, :].sum()
+                    # cos_sim = (psim * sim_mask).max(dim=1)[0].sum() / sim_mask[:, 0, :, :].sum()
                     sim_loss = 2 - distance # range [0, 2]
             else:
                 similarity = - distance
