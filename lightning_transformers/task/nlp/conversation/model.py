@@ -81,12 +81,18 @@ class ConversationTransformer(Seq2SeqTransformer):
         return self.common_step('train', batch)
 
     def validation_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
-        loss = self.common_step("val", batch)
-        return self.common_eval_step("val", batch)
+        rep_tf = self.common_step("val", batch)
+        rep_gen = self.common_eval_step("val", batch)
+        rep_gen.update(rep_tf)
+
+        return rep_gen
 
     def test_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
-        loss = self.common_step("test", batch)
-        return self.common_eval_step("test", batch)
+        rep_tf = self.common_step("test", batch)
+        rep_gen = self.common_eval_step("test", batch)
+        rep_gen.update(rep_tf)
+
+        return rep_gen
 
     def common_step(self, prefix: str, batch: Any) -> torch.Tensor:
         labels = batch.pop('labels')
@@ -180,9 +186,33 @@ class ConversationTransformer(Seq2SeqTransformer):
             )
         
         if self.cfg.disparate:
-            return ce_loss + self.cfg.disparate_alpha * sim_loss # the actual loss to backprop
+            final_loss = ce_loss + self.cfg.disparate_alpha * sim_loss # the actual loss to backprop
         else:
-            return ce_loss
+            final_loss = ce_loss
+        
+        if self.training:
+            return final_loss
+        else:
+            preds = logits.argmax(dim=-1)
+            # mask padding
+            preds *= non_padding.int()
+            # mask identical tokens
+            different_tokens = (labels.unsqueeze(-1) != labels.unsqueeze(1)).int()
+            different_tokens = different_tokens.tril()
+            true_non_rep = different_tokens.sum(dim=-1) == torch.arange(preds.size(1)).to(preds.device)
+            preds *= true_non_rep.int()
+            # calculate rep-1
+            different_preds = (preds.unsqueeze(-1) != preds.unsqueeze(1)).int()
+            different_preds = different_preds.tril()
+            rep_preds = different_preds.sum(dim=-1) < torch.arange(preds.size(1)).to(preds.device)
+            rep_preds *= non_padding
+            num_repeated = rep_preds.sum(-1)
+            num_total = non_padding.sum(-1)
+
+            return {
+                'num_rep_tf': num_repeated.sum().item(),
+                'num_total_tf': num_total.sum().item(),
+            }
 
     def common_eval_step(self, prefix: str, batch: Any) -> torch.Tensor:
         if self.cfg.compute_generate_metrics:
@@ -194,10 +224,21 @@ class ConversationTransformer(Seq2SeqTransformer):
         # aggregation strategy 1: add all #ngrams, #uniq_ngrams together, then take the division
         counts = Counter()
         for batch in outputs:
-            for res in batch:
-                counts.update(res)
+            counts.update(batch)
+        for key, val in counts.items():
+            if type(val) is list:
+                counts[key] = set(val)
         self.log_dict(
             {
+                f'{prefix}_rep_tf': (counts['num_rep_tf'] + 1e-8) / (counts['num_total_tf'] + 1e-8),
+                f'{prefix}_uniq_1': len(counts['unigrams']),
+                f'{prefix}_uniq_2': len(counts['bigrams']),
+                f'{prefix}_uniq_3': len(counts['trigrams']),
+                f'{prefix}_uniq_4': len(counts['fourgrams']),
+                f'{prefix}_distinct_1': (len(counts['unigrams']) + 1e-8) / (counts['num_unigrams'] + 1e-8),
+                f'{prefix}_distinct_2': (len(counts['bigrams']) + 1e-8) / (counts['num_bigrams'] + 1e-8),
+                f'{prefix}_distinct_3': (len(counts['trigrams']) + 1e-8) / (counts['num_trigrams'] + 1e-8),
+                f'{prefix}_distinct_4': (len(counts['fourgrams']) + 1e-8) / (counts['num_fourgrams'] + 1e-8),
                 f'{prefix}_rep_1': 1 - (counts['uniq_unigrams'] + 1e-8) / (counts['num_unigrams'] + 1e-8),
                 f'{prefix}_rep_2': 1 - (counts['uniq_bigrams'] + 1e-8) / (counts['num_bigrams'] + 1e-8),
                 f'{prefix}_rep_3': 1 - (counts['uniq_trigrams'] + 1e-8) / (counts['num_trigrams'] + 1e-8),
@@ -241,7 +282,8 @@ class ConversationTransformer(Seq2SeqTransformer):
         eos_id = self.tokenizer.eos_token_id
         pad_id = self.tokenizer.pad_token_id
 
-        res = []
+        res = Counter()
+        ngrams = Counter()
         for pred in batch_generations:
             # trim special tokens
             pred = pred[pred != bos_id]
@@ -254,7 +296,7 @@ class ConversationTransformer(Seq2SeqTransformer):
             fourgrams = [tuple(pred[i:i+4]) for i in range(len(pred) - 3)]
 
             # count total and distinct numbers
-            res.append(
+            res.update(
                 {
                     'num_unigrams': len(pred),
                     'num_bigrams': len(bigrams),
@@ -266,6 +308,17 @@ class ConversationTransformer(Seq2SeqTransformer):
                     'uniq_fourgrams': len(set(fourgrams)),
                 }
             )
+            ngrams.update(
+                {
+                    'unigrams': pred,
+                    'bigrams': bigrams,
+                    'trigrams': trigrams,
+                    'fourgrams': fourgrams,
+                }
+            )
+        # reduce unique ngrams and add to res
+        for key, val in ngrams.items():
+            res[key] = list(set(val))
         return res
 
     def generate(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> List[str]:
