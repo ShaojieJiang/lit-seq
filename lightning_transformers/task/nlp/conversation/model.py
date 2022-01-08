@@ -61,8 +61,6 @@ class ConversationTransformer(Seq2SeqTransformer):
         **model_data_kwargs,
     ) -> None:
         self.save_hyperparameters()
-        model_config = AutoConfig.from_pretrained(backbone.pretrained_model_name_or_path)
-        self.num_attention_heads = model_config.num_attention_heads
         if cfg.strengthen_position:
             model = BlenderbotForConditionalGenerationSPOS.from_pretrained(backbone.pretrained_model_name_or_path)
         else:
@@ -82,10 +80,19 @@ class ConversationTransformer(Seq2SeqTransformer):
 
     def validation_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         rep_tf = self.common_step("val", batch)
-        rep_gen = self.common_eval_step("val", batch)
+        if self.should_generate:
+            rep_gen = self.common_eval_step("val", batch)
+        else:
+            rep_gen = Counter()
         rep_gen.update(rep_tf)
 
         return rep_gen
+    
+    @property
+    def should_generate(self):
+        if self.trainer.global_step / self.trainer.max_steps >= self.cfg.generate_after_progress:
+            return True
+        return False
 
     def test_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         rep_tf = self.common_step("test", batch)
@@ -111,84 +118,33 @@ class ConversationTransformer(Seq2SeqTransformer):
         )
 
         # penalize pairwise similarity of last decoder hidden states
-        # if self.cfg.disparate_space == 'hidden':
-        output_vectors = outputs.decoder_hidden_states[-1] # last decoder hidden states
-        dimensions = output_vectors.size()
-        hd = int(dimensions[-1] / self.num_attention_heads)
-        output_vectors = output_vectors.view(dimensions[0], self.num_attention_heads, dimensions[1], hd)
-        # elif self.cfg.disparate_space == 'logits':
-            # output_vectors = logits
+        hidden_states = outputs.decoder_hidden_states[-1] # last decoder hidden states
 
-        # we always need to normalize to unit vectors, because scaled hidden states results in the same rankings
-        output_vectors = F.normalize(output_vectors, dim=-1)
-
-        sim_mask = 1 - torch.eye(dimensions[1]).view(1, 1, dimensions[1], dimensions[1]).to(output_vectors.device) # don't penalise self similarity
-        sim_mask = sim_mask.repeat(output_vectors.size(0), output_vectors.size(1), 1, 1)
+        sim_mask = 1 - torch.eye(labels.size(1)).to(labels.device) # don't penalise self similarity
+        sim_mask = sim_mask.repeat(labels.size(0), 1, 1)
         if self.cfg.padding_mask:
             tokens_mask = non_padding.float().unsqueeze(-1).bmm(non_padding.float().unsqueeze(1)).int()
-            sim_mask *= tokens_mask.unsqueeze(1)
+            sim_mask *= tokens_mask
         
         if self.cfg.identical_mask: # id_mask entails padding mask
             different_tokens = (labels.unsqueeze(-1) != labels.unsqueeze(1)).int()
-            sim_mask *= different_tokens.unsqueeze(1)
+            sim_mask *= different_tokens
             
+        vector_represen = F.normalize(hidden_states, dim=-1)
+        psim = vector_represen.bmm(vector_represen.transpose(1, 2))
+        cos_sim = (psim * sim_mask).sum() / sim_mask.sum() # for reporting
+        sim_loss = 1+ cos_sim
+
         # pairwise cosine similarity
-        if self.cfg.distance == 'cosine' or not self.cfg.disparate: # report cosine when not using disparate regulariser
-            pdist = torch.cdist(output_vectors, output_vectors, p=2)
-            psim = (2 - pdist.pow(2)) / 2
-            # psim = output_vectors.bmm(output_vectors.transpose(1, 2))
-            if self.cfg.disparate_aggregation == 'sum':
-                cos_sim = (psim * sim_mask).sum() / sim_mask[:, 0, :, :].sum()
-                sim_loss = self.num_attention_heads + cos_sim
-            elif self.cfg.disparate_aggregation == 'mean':
-                cos_sim = (psim * sim_mask).sum() / sim_mask.sum()
-                sim_loss = 1 + cos_sim # range [0, 2]
-            elif self.cfg.disparate_aggregation == 'max':
-                cos_sim = (psim * sim_mask).max(dim=1)[0].sum() / sim_mask[:, 0, :, :].sum()
-                sim_loss = 1 + cos_sim # range [0, 2]
-            
-            cos_sim = (psim * sim_mask).sum() / sim_mask.sum() # for reporting
-        # p-norm distance
-        elif self.cfg.distance.endswith('-norm'):
-            p = int(self.cfg.distance.split('-')[0])
-            pdist = torch.cdist(output_vectors, output_vectors, p=p)
-            if self.cfg.disparate_aggregation == 'sum':
-                distance = (pdist * sim_mask).sum() / sim_mask[:, 0, :, :].sum() # sum over heads
-            elif self.cfg.disparate_aggregation == 'mean':
-                distance = (pdist * sim_mask).sum() / sim_mask.sum() # average over heads
-            elif self.cfg.disparate_aggregation == 'max': # max similarity equals min distance
-                distance = (pdist * sim_mask).min(dim=1)[0].sum() / sim_mask[:, 0, :, :].sum() # min pooling over heads
-
-            if self.cfg.distance == '2-norm': # report cosine similarity for 2-norm
-                psim = (2 - pdist.pow(2)) / 2
-                cos_sim = (psim * sim_mask).sum() / sim_mask.sum()
-                if self.cfg.disparate_aggregation == 'sum':
-                    # cos_sim = (psim * sim_mask).sum() / sim_mask[:, 0, :, :].sum()
-                    sim_loss = 2*self.num_attention_heads - distance # range [0, 2]
-                elif self.cfg.disparate_aggregation == 'mean':
-                    sim_loss = 2 - distance # range [0, 2]
-                elif self.cfg.disparate_aggregation == 'max':
-                    # cos_sim = (psim * sim_mask).max(dim=1)[0].sum() / sim_mask[:, 0, :, :].sum()
-                    sim_loss = 2 - distance # range [0, 2]
-            else:
-                similarity = - distance
-                sim_loss = similarity
-
-        if self.cfg.distance in ['cosine', '2-norm'] or not self.cfg.disparate: # log cosine similarity
-            self.log(
-                f"{prefix}_similarity", cos_sim,
-                add_dataloader_idx=False,
-            )
-        else: # log negative n-norm
-            self.log(
-                f"{prefix}_neg_{self.cfg.distance}", similarity,
-                add_dataloader_idx=False,
-            )
-        
-        if self.cfg.disparate:
+        if self.cfg.disparate: # report cosine when not using disparate regulariser
             final_loss = ce_loss + self.cfg.disparate_alpha * sim_loss # the actual loss to backprop
         else:
             final_loss = ce_loss
+
+        self.log(
+            f"{prefix}_similarity", cos_sim,
+            add_dataloader_idx=False,
+        )
         
         if self.training:
             return final_loss
@@ -228,24 +184,31 @@ class ConversationTransformer(Seq2SeqTransformer):
         for key, val in counts.items():
             if type(val) is list:
                 counts[key] = set(val)
-        self.log_dict(
-            {
-                f'{prefix}_rep_tf': (counts['num_rep_tf'] + 1e-8) / (counts['num_total_tf'] + 1e-8),
-                f'{prefix}_uniq_1': len(counts['unigrams']),
-                f'{prefix}_uniq_2': len(counts['bigrams']),
-                f'{prefix}_uniq_3': len(counts['trigrams']),
-                f'{prefix}_uniq_4': len(counts['fourgrams']),
-                f'{prefix}_distinct_1': (len(counts['unigrams']) + 1e-8) / (counts['num_unigrams'] + 1e-8),
-                f'{prefix}_distinct_2': (len(counts['bigrams']) + 1e-8) / (counts['num_bigrams'] + 1e-8),
-                f'{prefix}_distinct_3': (len(counts['trigrams']) + 1e-8) / (counts['num_trigrams'] + 1e-8),
-                f'{prefix}_distinct_4': (len(counts['fourgrams']) + 1e-8) / (counts['num_fourgrams'] + 1e-8),
-                f'{prefix}_rep_1': 1 - (counts['uniq_unigrams'] + 1e-8) / (counts['num_unigrams'] + 1e-8),
-                f'{prefix}_rep_2': 1 - (counts['uniq_bigrams'] + 1e-8) / (counts['num_bigrams'] + 1e-8),
-                f'{prefix}_rep_3': 1 - (counts['uniq_trigrams'] + 1e-8) / (counts['num_trigrams'] + 1e-8),
-                f'{prefix}_rep_4': 1 - (counts['uniq_fourgrams'] + 1e-8) / (counts['num_fourgrams'] + 1e-8),
-            },
-            add_dataloader_idx=False,
-        )
+        if self.should_generate:
+            self.log_dict(
+                {
+                    f'{prefix}_rep_tf': (counts['num_rep_tf'] + 1e-8) / (counts['num_total_tf'] + 1e-8),
+                    f'{prefix}_uniq_1': len(counts['unigrams']),
+                    f'{prefix}_uniq_2': len(counts['bigrams']),
+                    f'{prefix}_uniq_3': len(counts['trigrams']),
+                    f'{prefix}_uniq_4': len(counts['fourgrams']),
+                    f'{prefix}_distinct_1': (len(counts['unigrams']) + 1e-8) / (counts['num_unigrams'] + 1e-8),
+                    f'{prefix}_distinct_2': (len(counts['bigrams']) + 1e-8) / (counts['num_bigrams'] + 1e-8),
+                    f'{prefix}_distinct_3': (len(counts['trigrams']) + 1e-8) / (counts['num_trigrams'] + 1e-8),
+                    f'{prefix}_distinct_4': (len(counts['fourgrams']) + 1e-8) / (counts['num_fourgrams'] + 1e-8),
+                    f'{prefix}_rep_1': 1 - (counts['uniq_unigrams'] + 1e-8) / (counts['num_unigrams'] + 1e-8),
+                    f'{prefix}_rep_2': 1 - (counts['uniq_bigrams'] + 1e-8) / (counts['num_bigrams'] + 1e-8),
+                    f'{prefix}_rep_3': 1 - (counts['uniq_trigrams'] + 1e-8) / (counts['num_trigrams'] + 1e-8),
+                    f'{prefix}_rep_4': 1 - (counts['uniq_fourgrams'] + 1e-8) / (counts['num_fourgrams'] + 1e-8),
+                },
+                add_dataloader_idx=False,
+            )
+        else:
+            self.log(
+                f'{prefix}_rep_tf',
+                (counts['num_rep_tf'] + 1e-8) / (counts['num_total_tf'] + 1e-8),
+                add_dataloader_idx=False,
+            )
         # aggregation strategy 2: calc the repetition rate of each example, then average
         # Update: This 2nd strategy doesn't expose the problem well
 

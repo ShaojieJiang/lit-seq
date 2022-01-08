@@ -14,8 +14,7 @@ task:
     num_beams: 1 # 10 by default
     disparate: True # toggle for using the disparate regulariser
     padding_mask: True # mask for padding tokens
-    identical_mask: True # mask for identical tokens
-    distance: cosine # cosine, 0-norm, 1-norm, 2-norm...
+    identical_mask: False # mask for identical tokens
     disparate_alpha: 10 # coefficient for similarity loss
-    disparate_space: hidden # logits
     strengthen_position: True # whether to strengthen position embedding at each decoder layer
+    generate_after_progress: 0.8 # don't generate before this threshold, to save time

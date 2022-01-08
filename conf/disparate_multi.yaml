@@ -10,7 +10,6 @@ dataset:
 task:
   cfg:
     task_name: conversation_disparity_spos
-    disparate_aggregation: sum
 
 training:
   lr: 1e-5
