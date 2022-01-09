@@ -90,7 +90,7 @@ class ConversationTransformer(Seq2SeqTransformer):
     
     @property
     def should_generate(self):
-        if self.trainer.global_step / self.trainer.max_steps >= self.cfg.generate_after_progress:
+        if self.trainer.global_step / max(self.trainer.max_steps, 1e-8) >= self.cfg.generate_after_progress:
             return True
         return False
 
@@ -133,7 +133,7 @@ class ConversationTransformer(Seq2SeqTransformer):
         vector_represen = F.normalize(hidden_states, dim=-1)
         psim = vector_represen.bmm(vector_represen.transpose(1, 2))
         cos_sim = (psim * sim_mask).sum() / sim_mask.sum() # for reporting
-        sim_loss = 1+ cos_sim
+        sim_loss = 1 + cos_sim
 
         # pairwise cosine similarity
         if self.cfg.disparate: # report cosine when not using disparate regulariser
