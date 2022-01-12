@@ -230,6 +230,13 @@ class ConversationTransformer(Seq2SeqTransformer):
 
     def compute_generate_metrics(self, batch, prefix):
         _, generated_tokens = self.generate(batch["input_ids"], batch["attention_mask"])
+        if self.trainer.gpus > 1:
+            max_length = self.cfg.val_target_max_length
+            tensor_for_gathering = torch.zeros(generated_tokens.size(0), max_length).to(generated_tokens.device)
+            tensor_for_gathering[:, :generated_tokens.size(1)] = generated_tokens
+            gathered_tensors = self.all_gather(tensor_for_gathering)
+            generated_tokens = gathered_tensors.view(-1, max_length)
+
         ngram_counts = self.get_unique_total_ngrams(generated_tokens)
         self.log(
             f'{prefix}_pred_len', (generated_tokens[:, 1:] != 0).sum(dim=-1),
