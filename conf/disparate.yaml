@@ -17,4 +17,4 @@ task:
     identical_mask: False # mask for identical tokens
     disparate_alpha: 10 # coefficient for similarity loss
     strengthen_position: True # whether to strengthen position embedding at each decoder layer
-    generate_after_progress: 0.8 # don't generate before this threshold, to save time
+    generate_after_progress: 0.98 # don't generate before this threshold, to save time
