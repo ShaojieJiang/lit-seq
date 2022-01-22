@@ -100,6 +100,30 @@ class ConversationTransformer(Seq2SeqTransformer):
         rep_gen.update(rep_tf)
 
         return rep_gen
+    
+    def calc_similarity(self, hidden_states, indices, padding_id=0, calc_sim_weight=True):
+        non_padding = indices != padding_id
+
+        sim_mask = 1 - torch.eye(indices.size(1)).to(indices.device) # don't penalise self similarity
+        sim_mask = sim_mask.repeat(indices.size(0), 1, 1)
+        if self.cfg.padding_mask: # don't calc similarity for padding tokens
+            tokens_mask = non_padding.float().unsqueeze(-1).bmm(non_padding.float().unsqueeze(1)).int()
+            sim_mask *= tokens_mask
+        
+        if self.cfg.identical_mask: # id_mask entails padding mask
+            different_tokens = (indices.unsqueeze(-1) != indices.unsqueeze(1)).int()
+            sim_mask *= different_tokens
+            
+        vector_represen = F.normalize(hidden_states, dim=-1)
+        pair_sim = vector_represen.bmm(vector_represen.transpose(1, 2))
+        # report the avg similarity of all
+        cos_sim = (pair_sim * sim_mask).sum() / (sim_mask.sum() + 1e-8) # get average cosine similarity
+
+        sim_mask *= (pair_sim >= self.cfg.sim_threshold).int()
+        # report the avg similarity of all
+        cut_cos_sim = (pair_sim * sim_mask).sum() / (sim_mask.sum() + 1e-8) # get average cosine similarity
+
+        return cos_sim, cut_cos_sim
 
     def common_step(self, prefix: str, batch: Any) -> torch.Tensor:
         labels = batch.pop('labels')
@@ -109,6 +133,29 @@ class ConversationTransformer(Seq2SeqTransformer):
         logits = outputs.logits
         non_padding = labels != self.criterion.ignore_index
 
+        # ####################
+        # pad_id = self.tokenizer.pad_token_id
+        # preds = logits.argmax(dim=-1)
+        # preds *= non_padding.int()
+        # mis_pred_mask = (preds != labels).int()
+        # mis_pred = preds * mis_pred_mask
+        # # use mis_pred as negative samples
+        # probs = logits.softmax(dim=-1)
+        # labels *= (labels >= 0).int()
+        # gt_prob = probs.gather(2, labels.unsqueeze(-1))
+        # if self.cfg.single_cl:
+        #     pred_prob = probs.gather(2, preds.unsqueeze(-1))
+        #     cl_loss = -torch.log(gt_prob / pred_prob)
+        #     cl_loss = cl_loss.sum() / non_padding.sum()
+        # else:
+        #     negative_targets = (probs > gt_prob).int()
+        #     p_over_q = gt_prob / probs
+        #     neg_log_p_q = -torch.log(p_over_q)
+        #     cl_loss = neg_log_p_q * negative_targets
+        #     # cl_loss = cl_loss.sum() / non_padding.sum() # sum over token
+        #     cl_loss = (cl_loss.sum(dim=-1) / (negative_targets.sum(dim=-1) + 1e-8)).sum() / non_padding.sum() # average over token
+        # ####################
+
         # calculate CE loss
         loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1)).view(labels.size())
         ce_loss = loss.sum() / non_padding.int().sum()
@@ -116,24 +163,12 @@ class ConversationTransformer(Seq2SeqTransformer):
             f"{prefix}_loss", ce_loss,
             add_dataloader_idx=False,
         )
-
-        # penalize pairwise similarity of last decoder hidden states
-        hidden_states = outputs.decoder_hidden_states[-1] # last decoder hidden states
-
-        sim_mask = 1 - torch.eye(labels.size(1)).to(labels.device) # don't penalise self similarity
-        sim_mask = sim_mask.repeat(labels.size(0), 1, 1)
-        if self.cfg.padding_mask:
-            tokens_mask = non_padding.float().unsqueeze(-1).bmm(non_padding.float().unsqueeze(1)).int()
-            sim_mask *= tokens_mask
-        
-        if self.cfg.identical_mask: # id_mask entails padding mask
-            different_tokens = (labels.unsqueeze(-1) != labels.unsqueeze(1)).int()
-            sim_mask *= different_tokens
-            
-        vector_represen = F.normalize(hidden_states, dim=-1)
-        psim = vector_represen.bmm(vector_represen.transpose(1, 2))
-        cos_sim = (psim * sim_mask).sum() / sim_mask.sum() # for reporting
-        sim_loss = 1 + cos_sim
+        mean_sim, sim_loss = self.calc_similarity(
+            outputs.decoder_hidden_states[-1],
+            labels,
+            padding_id=self.criterion.ignore_index,
+            calc_sim_weight=False if self.cfg.disparate else True,
+        )
 
         # pairwise cosine similarity
         if self.cfg.disparate: # report cosine when not using disparate regulariser
@@ -141,8 +176,11 @@ class ConversationTransformer(Seq2SeqTransformer):
         else:
             final_loss = ce_loss
 
-        self.log(
-            f"{prefix}_similarity", cos_sim,
+        self.log_dict(
+            {
+                f"{prefix}_similarity": mean_sim,
+                # f"{prefix}_cl_loss": cl_loss,
+            },
             add_dataloader_idx=False,
         )
         
