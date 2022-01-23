@@ -133,36 +133,10 @@ class ConversationTransformer(Seq2SeqTransformer):
         logits = outputs.logits
         non_padding = labels != self.criterion.ignore_index
 
-        # ####################
-        # pad_id = self.tokenizer.pad_token_id
-        # preds = logits.argmax(dim=-1)
-        # preds *= non_padding.int()
-        # mis_pred_mask = (preds != labels).int()
-        # mis_pred = preds * mis_pred_mask
-        # # use mis_pred as negative samples
-        # probs = logits.softmax(dim=-1)
-        # labels *= (labels >= 0).int()
-        # gt_prob = probs.gather(2, labels.unsqueeze(-1))
-        # if self.cfg.single_cl:
-        #     pred_prob = probs.gather(2, preds.unsqueeze(-1))
-        #     cl_loss = -torch.log(gt_prob / pred_prob)
-        #     cl_loss = cl_loss.sum() / non_padding.sum()
-        # else:
-        #     negative_targets = (probs > gt_prob).int()
-        #     p_over_q = gt_prob / probs
-        #     neg_log_p_q = -torch.log(p_over_q)
-        #     cl_loss = neg_log_p_q * negative_targets
-        #     # cl_loss = cl_loss.sum() / non_padding.sum() # sum over token
-        #     cl_loss = (cl_loss.sum(dim=-1) / (negative_targets.sum(dim=-1) + 1e-8)).sum() / non_padding.sum() # average over token
-        # ####################
-
         # calculate CE loss
         loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1)).view(labels.size())
         ce_loss = loss.sum() / non_padding.int().sum()
-        self.log(
-            f"{prefix}_loss", ce_loss,
-            add_dataloader_idx=False,
-        )
+
         mean_sim, sim_loss = self.calc_similarity(
             outputs.decoder_hidden_states[-1],
             labels,
@@ -170,19 +144,34 @@ class ConversationTransformer(Seq2SeqTransformer):
             calc_sim_weight=False if self.cfg.disparate else True,
         )
 
-        # pairwise cosine similarity
-        if self.cfg.disparate: # report cosine when not using disparate regulariser
-            final_loss = ce_loss + self.cfg.disparate_alpha * sim_loss # the actual loss to backprop
-        else:
-            final_loss = ce_loss
-
         self.log_dict(
             {
+                f"{prefix}_ce_loss": ce_loss,
                 f"{prefix}_similarity": mean_sim,
-                # f"{prefix}_cl_loss": cl_loss,
             },
             add_dataloader_idx=False,
         )
+
+        final_loss = ce_loss
+        if self.cfg.disparate: # report cosine when not using disparate regulariser
+            final_loss += self.cfg.disparate_alpha * sim_loss
+
+        if self.cfg.contrastive:
+            ## normal cl (log sum)
+            topk_probs, topk_preds = logits.topk(k=self.cfg.topk)
+            labels *= (labels >= 0).int()
+            neg_exs = (topk_preds != labels.unsqueeze(-1)).int() # only keep negative examples
+            gt_scores = logits.gather(2, labels.unsqueeze(-1))
+            neg_minus_pos = topk_probs - gt_scores
+            exp = (neg_minus_pos.exp() * neg_exs).sum(dim=-1) # apply negative example mask
+            losses = (1 + exp).log() * non_padding.int()
+            cl_loss = losses.sum() / non_padding.int().sum()
+            self.log(
+                f"{prefix}_cl_loss", cl_loss,
+                add_dataloader_idx=False,
+            )
+
+            final_loss += cl_loss # the actual loss to backprop
         
         if self.training:
             return final_loss

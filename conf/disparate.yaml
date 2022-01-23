@@ -12,11 +12,12 @@ task:
     encoder_no_repeat_ngram_size: 0 # 3 by default
     min_length: 20 # 20 by default
     num_beams: 1 # 10 by default
-    disparate: True # toggle for using the disparate regulariser
+    disparate: False # toggle for using the disparate regulariser
     padding_mask: True # mask for padding tokens
     identical_mask: False # mask for identical tokens
     disparate_alpha: 10 # coefficient for similarity loss
-    strengthen_position: True # whether to strengthen position embedding at each decoder layer
+    strengthen_position: False # whether to strengthen position embedding at each decoder layer
     generate_after_progress: 0.97 # don't generate before this threshold, to save time
     sim_threshold: 0.1
-    # single_cl: True # True for using a single negative example; False for using all
+    contrastive: True
+    topk: 5
