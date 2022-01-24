@@ -101,6 +101,44 @@ class ConversationTransformer(Seq2SeqTransformer):
 
         return rep_gen
     
+    def compute_seq_ul(self, batch):
+        pad_id = self.tokenizer.pad_token_id
+
+        generated = self.model.generate.__wrapped__(
+            self.model,
+            input_ids=batch['input_ids'],
+            attention_mask=batch['attention_mask'],
+            num_beams=1,
+            max_length=50,
+            no_repeat_ngram_size=0,
+            encoder_no_repeat_ngram_size=0,
+            min_length=self.cfg.min_length,
+            return_dict_in_generate=True,
+            output_scores=True,
+        )
+        gen_logits = torch.cat([scores.unsqueeze(1) for scores in generated.scores], dim=1)
+        gen_probs = gen_logits.softmax(dim=-1)
+        pred_probs = gen_probs.gather(2, generated.sequences[:, 1:].unsqueeze(-1))
+        one_minus_probs = torch.clamp(1 - pred_probs, min=1e-20).squeeze(-1)
+        repeated = self.repeated_ngrams(generated.sequences[:, 1:], n=4)
+        repeated *= generated.sequences[:, 1:] != pad_id
+        seq_ul = -torch.log(one_minus_probs) * repeated
+        seq_ul = seq_ul.sum()
+        
+        return seq_ul
+    
+    def repeated_ngrams(self, tensor, n):
+        mask = torch.zeros_like(tensor)
+        for i, x in enumerate(tensor):
+            seen = set()
+            xl = x.tolist()
+            for j in range(len(x)-n):
+                ng = tuple(xl[j:j+n])
+                if ng in seen:
+                    mask[i, j:j+n] = 1
+                seen.add(ng)
+        return mask
+    
     def calc_similarity(self, hidden_states, indices, padding_id=0, calc_sim_weight=True):
         non_padding = indices != padding_id
 
@@ -146,7 +184,7 @@ class ConversationTransformer(Seq2SeqTransformer):
 
         self.log_dict(
             {
-                f"{prefix}_ce_loss": ce_loss,
+                f"{prefix}_loss": ce_loss,
                 f"{prefix}_similarity": mean_sim,
             },
             add_dataloader_idx=False,
@@ -159,7 +197,7 @@ class ConversationTransformer(Seq2SeqTransformer):
         if self.cfg.contrastive:
             ## normal cl (log sum)
             topk_probs, topk_preds = logits.topk(k=self.cfg.topk)
-            labels *= (labels >= 0).int()
+            labels = labels * (labels >= 0).int()
             neg_exs = (topk_preds != labels.unsqueeze(-1)).int() # only keep negative examples
             gt_scores = logits.gather(2, labels.unsqueeze(-1))
             neg_minus_pos = topk_probs - gt_scores
@@ -172,6 +210,14 @@ class ConversationTransformer(Seq2SeqTransformer):
             )
 
             final_loss += cl_loss # the actual loss to backprop
+        
+        if self.cfg.unlikelihood:
+            seq_ul = self.compute_seq_ul(batch)
+            self.log(
+                f"{prefix}_seq_ul", seq_ul,
+                add_dataloader_idx=False,
+            )
+            final_loss += self.cfg.ul_alpha * seq_ul
         
         if self.training:
             return final_loss

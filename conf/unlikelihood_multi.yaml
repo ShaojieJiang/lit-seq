@@ -1,0 +1,28 @@
+defaults: # loads default configs
+  - disparate_multi
+
+dataset:
+  cfg:
+    batch_size: 4
+
+scheduler:
+  num_training_steps: ${trainer.max_steps}  # -1 specifies to infer number of training steps
+  num_warmup_steps: 0  # float values determines percentage of training steps to use as warmup
+
+trainer:
+  max_steps: 1500
+  val_check_interval: 500
+  limit_val_batches: 200
+  # limit_test_batches: 2
+  logger:
+    project: disparity-spos2
+
+task:
+  cfg:
+    task_name: conversation_disparity_spos_ul
+    disparate: False # toggle for using the disparate regulariser
+    strengthen_position: False # whether to strengthen position embedding at each decoder layer
+    contrastive: False
+    unlikelihood: True
+    ul_alpha: 10
+    generate_after_progress: 0 # don't generate before this threshold, to save time
