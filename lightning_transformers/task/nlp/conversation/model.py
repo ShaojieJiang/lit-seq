@@ -171,14 +171,14 @@ class ConversationTransformer(Seq2SeqTransformer):
 
         ctx_cands = targets.unsqueeze(1).expand(targets.size(0), targets.size(1), targets.size(1))
         ctx_cands = ctx_cands.tril(-1)
-        ctx_cands = ctx_cands.masked_fill(ctx_cands == targets.unsqueeze(-1), pad_id) # exclude same tokens as self
+        ctx_cands = ctx_cands.masked_fill(ctx_cands == targets.unsqueeze(-1), pad_id) # exclude same tokens as negatives
         negative_targets = torch.zeros_like(logits).scatter_(2, ctx_cands, 1)
         negative_targets.scatter_(2, torch.zeros_like(targets).unsqueeze(-1) + pad_id, 0) # don't treat the pad_id as negative example
 
         if method == 'ul':
             # penalise previous tokens
             probs = logits.softmax(dim=-1)
-            token_ul = -torch.log(1 - probs) * negative_targets
+            token_ul = -torch.log(torch.clamp(1 - probs, min=1e-20)) * negative_targets
             token_ul = token_ul.sum(dim=-1) * non_padding.int()
             ul_loss = token_ul.sum() / non_padding.int().sum()
 
@@ -186,21 +186,25 @@ class ConversationTransformer(Seq2SeqTransformer):
         else:
             gt_scores = logits.gather(2, targets.unsqueeze(-1))
 
-            topk_probs, topk_preds = logits.topk(k=self.cfg.topk)
-
             if method == 'cl1':
                 # contrastive with previous tokens
                 # this implementation doesn't consider repeated negatives
-                negative_targets = torch.zeros_like(logits).scatter_(2, topk_preds, 1)
-                negative_targets.scatter_(2, targets.unsqueeze(-1), 0) # don't use self as negatives
-                negative_targets.scatter_(2, torch.zeros_like(targets).unsqueeze(-1) + pad_id, 0) # don't treat the pad_id as negative example
+                if self.cfg.topk > 0:
+                    _, topk_preds = logits.topk(k=self.cfg.topk)
+                    negative_targets = negative_targets.scatter_(2, topk_preds, 1)
+                    negative_targets.scatter_(2, targets.unsqueeze(-1), 0) # don't use self as negatives
+                    negative_targets.scatter_(2, torch.zeros_like(targets).unsqueeze(-1) + pad_id, 0) # don't treat the pad_id as negative example
+                
                 neg_minus_pos = logits - gt_scores
                 exp = neg_minus_pos.exp() * negative_targets
                 sum_exp = exp.sum(dim=-1)
             elif method == 'cl2':
                 # this cl implementation consideres repeated netatives
                 neg_exs = targets.unsqueeze(1).expand(targets.size(0), targets.size(1), targets.size(1))
-                neg_exs = torch.cat([topk_preds, neg_exs], dim=-1) # concat topk_preds as negatives
+                if self.cfg.topk > 0:
+                    _, topk_preds = logits.topk(k=self.cfg.topk)
+                    neg_exs = torch.cat([topk_preds, neg_exs], dim=-1) # concat topk_preds as negatives
+                
                 neg_mask = (neg_exs != targets.unsqueeze(-1)).int()
                 neg_scores = logits.gather(2, neg_exs)
                 neg_minus_pos = neg_scores - gt_scores
@@ -245,7 +249,7 @@ class ConversationTransformer(Seq2SeqTransformer):
 
         if self.cfg.negative_training:
             ## normal cl (log sum)
-            neg_loss = self.negative(
+            neg_loss = self.negative_loss(
                 logits,
                 labels,
                 padding_id=self.criterion.ignore_index,
