@@ -163,17 +163,40 @@ class ConversationTransformer(Seq2SeqTransformer):
 
         return cos_sim, cut_cos_sim
     
-    def negative_loss(self, hidden_states, indices, padding_id=0, method='cl2'):
-        non_padding = indices != padding_id
-        logits = hidden_states
-        targets = indices * (indices >= 0).int()
+    def negative_sampling(self, logits=None, labels=None, pad_id=0):
+        neg_exs = None
+        topk_preds = None
+        if self.cfg.topk_hard_negatives > 0:
+            _, topk_preds = logits.topk(k=self.cfg.topk_hard_negatives)
+        
+        if topk_preds is not None:
+            neg_exs = topk_preds
+        
+        preced_tokens = None
+        if self.cfg.preced_k_negatives >= 0: # use previous k tokens as negatives
+            preced_tokens = labels.unsqueeze(1).expand(labels.size(0), labels.size(1), labels.size(1)).tril(-1)
+            if self.cfg.preced_k_negatives > 0:
+                preced_tokens = preced_tokens.triu(- self.cfg.preced_k_negatives) # discard further preced tokens
+
+        if preced_tokens is not None:
+            if neg_exs is None:
+                neg_exs = preced_tokens
+            else:
+                neg_exs = torch.cat([neg_exs, preced_tokens], dim=-1)
+
+        neg_exs = neg_exs.masked_fill(neg_exs == labels.unsqueeze(-1), pad_id) # exclude same label tokens as negatives
+
+        return neg_exs
+    
+    def negative_loss(self, logits, target_inds, orig_pad_id=0, method='cl2'):
+        non_padding = target_inds != orig_pad_id
+        labels = target_inds * (target_inds >= 0).int()
         pad_id = self.tokenizer.pad_token_id
 
-        ctx_cands = targets.unsqueeze(1).expand(targets.size(0), targets.size(1), targets.size(1))
-        ctx_cands = ctx_cands.tril(-1)
-        ctx_cands = ctx_cands.masked_fill(ctx_cands == targets.unsqueeze(-1), pad_id) # exclude same tokens as negatives
-        negative_targets = torch.zeros_like(logits).scatter_(2, ctx_cands, 1)
-        negative_targets.scatter_(2, torch.zeros_like(targets).unsqueeze(-1) + pad_id, 0) # don't treat the pad_id as negative example
+        neg_exs = self.negative_sampling(logits=logits, labels=labels, pad_id=pad_id)
+
+        negative_targets = torch.zeros_like(logits).scatter_(2, neg_exs, 1)
+        negative_targets.scatter_(2, torch.zeros_like(labels).unsqueeze(-1) + pad_id, 0) # don't treat the pad_id as negative example
 
         if method == 'ul':
             # penalise previous tokens
@@ -184,32 +207,21 @@ class ConversationTransformer(Seq2SeqTransformer):
 
             return ul_loss
         else:
-            gt_scores = logits.gather(2, targets.unsqueeze(-1))
+            gt_scores = logits.gather(2, labels.unsqueeze(-1))
 
             if method == 'cl1':
                 # contrastive with previous tokens
                 # this implementation doesn't consider repeated negatives
-                if self.cfg.topk > 0:
-                    _, topk_preds = logits.topk(k=self.cfg.topk)
-                    negative_targets = negative_targets.scatter_(2, topk_preds, 1)
-                    negative_targets.scatter_(2, targets.unsqueeze(-1), 0) # don't use self as negatives
-                    negative_targets.scatter_(2, torch.zeros_like(targets).unsqueeze(-1) + pad_id, 0) # don't treat the pad_id as negative example
-                
                 neg_minus_pos = logits - gt_scores
                 exp = neg_minus_pos.exp() * negative_targets
                 sum_exp = exp.sum(dim=-1)
             elif method == 'cl2':
                 # this cl implementation consideres repeated netatives
-                neg_exs = targets.unsqueeze(1).expand(targets.size(0), targets.size(1), targets.size(1))
-                if self.cfg.topk > 0:
-                    _, topk_preds = logits.topk(k=self.cfg.topk)
-                    neg_exs = torch.cat([topk_preds, neg_exs], dim=-1) # concat topk_preds as negatives
-                
-                neg_mask = (neg_exs != targets.unsqueeze(-1)).int()
+                pad_mask = (neg_exs != pad_id).int()
                 neg_scores = logits.gather(2, neg_exs)
                 neg_minus_pos = neg_scores - gt_scores
                 exp = neg_minus_pos.exp()
-                sum_exp = (exp.tril(-1 + self.cfg.topk) * neg_mask).sum(dim=-1)
+                sum_exp = (exp * pad_mask).sum(dim=-1) # don't use pad tokens as negatives
 
             losses = (1 + sum_exp).log() * non_padding.int()
             cl_loss = losses.sum() / non_padding.int().sum()
@@ -247,12 +259,11 @@ class ConversationTransformer(Seq2SeqTransformer):
         if self.cfg.disparate: # report cosine when not using disparate regulariser
             final_loss += self.cfg.disparate_alpha * sim_loss
 
-        if self.cfg.negative_training:
-            ## normal cl (log sum)
+        if self.cfg.topk_hard_negatives > 0 or self.cfg.preced_k_negatives > -1:
             neg_loss = self.negative_loss(
                 logits,
                 labels,
-                padding_id=self.criterion.ignore_index,
+                orig_pad_id=self.criterion.ignore_index,
                 method=self.cfg.negative_method,
             )
             self.log(
