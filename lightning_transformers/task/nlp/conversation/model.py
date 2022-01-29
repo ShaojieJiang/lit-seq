@@ -369,16 +369,31 @@ class ConversationTransformer(Seq2SeqTransformer):
             outputs = [batch for dset_output in outputs for batch in dset_output]
 
         self.aggregate_outputs(outputs, 'test')
+    
+    def pad_and_gather(self, tensor):
+        max_length = self.cfg.val_target_max_length
+        pad_length = max_length - tensor.size(-1)
+        # pad tensors to the same size, otherwise all_gather will be stuck
+        tensor = F.pad(tensor, (0, pad_length), 'constant', 0)
+        tensor = self.all_gather(tensor)
+        tensor = tensor.view(-1, max_length)
+
+        return tensor
 
     def compute_generate_metrics(self, batch, prefix):
         _, generated_tokens = self.generate(batch["input_ids"], batch["attention_mask"])
+        input_ids = batch["input_ids"]
         if self.trainer.gpus > 1:
-            max_length = self.cfg.val_target_max_length
-            pad_length = max_length - generated_tokens.size(-1)
-            # pad tensors to the same size, otherwise all_gather will be stuck
-            generated_tokens = F.pad(generated_tokens, (0, pad_length), 'constant', 0)
-            gathered_tensors = self.all_gather(generated_tokens)
-            generated_tokens = gathered_tensors.view(-1, max_length)
+            generated_tokens = self.pad_and_gather(generated_tokens)
+            input_ids = self.pad_and_gather(input_ids)
+            
+        if self.cfg.save_generation_path is not None and self.global_rank == 0:
+            f = open(self.cfg.save_generation_path, 'a')
+            contexts = self.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
+            responses = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
+            for ctx, res in zip(contexts, responses):
+                f.write(f"{ctx}\n{res}\n\n")
+            f.close()
 
         ngram_counts = self.get_unique_total_ngrams(generated_tokens)
         self.log(

@@ -24,3 +24,4 @@ task:
     preced_k_negatives: 0 # -1: use none; 0: use all; k: use preceding k tokens as negatives
     negative_method: cl2 # cl1, ul
     scratch: False
+    save_generation_path: null # ${trainer.default_root_dir}/generated.txt
