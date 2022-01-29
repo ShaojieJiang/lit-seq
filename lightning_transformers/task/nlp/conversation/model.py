@@ -61,11 +61,18 @@ class ConversationTransformer(Seq2SeqTransformer):
         **model_data_kwargs,
     ) -> None:
         self.save_hyperparameters()
-        if cfg.strengthen_position:
-            model = BlenderbotForConditionalGenerationSPOS.from_pretrained(backbone.pretrained_model_name_or_path)
+        if cfg.scratch:
+            config = AutoConfig.from_pretrained(backbone.pretrained_model_name_or_path)
+            if cfg.strengthen_position:
+                model = BlenderbotForConditionalGenerationSPOS(config)
+            else:
+                model = BlenderbotForConditionalGeneration(config)
         else:
-            model_cls: Type["AutoModel"] = get_class(downstream_model_type)
-            model = model_cls.from_pretrained(backbone.pretrained_model_name_or_path, **model_data_kwargs)
+            if cfg.strengthen_position:
+                model = BlenderbotForConditionalGenerationSPOS.from_pretrained(backbone.pretrained_model_name_or_path)
+            else:
+                model_cls: Type["AutoModel"] = get_class(downstream_model_type)
+                model = model_cls.from_pretrained(backbone.pretrained_model_name_or_path, **model_data_kwargs)
         super(HFTransformer, self).__init__(model=model, optimizer=optimizer, scheduler=scheduler, instantiator=instantiator, cfg=cfg)
         self._tokenizer = tokenizer  # necessary for hf_pipeline
         self._hf_pipeline = None
