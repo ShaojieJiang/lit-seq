@@ -14,7 +14,7 @@ backbone:
 dataset:
   cfg:
     history_delimiter: '  '
-    history_size: 1
+    history_size: 3
     hierarchical: False
     eval_batch_size: 12
 
