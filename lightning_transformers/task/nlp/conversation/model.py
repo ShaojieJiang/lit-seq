@@ -326,7 +326,7 @@ class ConversationTransformer(Seq2SeqTransformer):
         for key, val in counts.items():
             if type(val) is list:
                 counts[key] = set(val)
-        if self.should_generate:
+        if self.should_generate or prefix == 'test':
             self.log_dict(
                 {
                     f'{prefix}_rep_tf': (counts['num_rep_tf'] + 1e-8) / (counts['num_total_tf'] + 1e-8),
