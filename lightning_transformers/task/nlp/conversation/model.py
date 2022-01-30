@@ -146,7 +146,7 @@ class ConversationTransformer(Seq2SeqTransformer):
                 seen.add(ng)
         return mask
     
-    def calc_similarity(self, hidden_states, indices, padding_id=0, calc_sim_weight=True):
+    def calc_similarity(self, hidden_states, indices, padding_id=0):
         non_padding = indices != padding_id
 
         sim_mask = 1 - torch.eye(indices.size(1)).to(indices.device) # don't penalise self similarity
@@ -164,9 +164,11 @@ class ConversationTransformer(Seq2SeqTransformer):
         # report the avg similarity of all
         cos_sim = (pair_sim * sim_mask).sum() / (sim_mask.sum() + 1e-8) # get average cosine similarity
 
-        sim_mask *= (pair_sim >= self.cfg.sim_threshold).int()
-        # report the avg similarity of all
-        cut_cos_sim = (pair_sim * sim_mask).sum() / (sim_mask.sum() + 1e-8) # get average cosine similarity
+        cut_cos_sim = None
+        if self.cfg.disparate:
+            sim_mask *= (pair_sim >= self.cfg.sim_threshold).int()
+            # report the avg similarity of all
+            cut_cos_sim = (pair_sim * sim_mask).sum() / (sim_mask.sum() + 1e-8) # get average cosine similarity
 
         return cos_sim, cut_cos_sim
     
@@ -247,12 +249,19 @@ class ConversationTransformer(Seq2SeqTransformer):
         loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1)).view(labels.size())
         ce_loss = loss.sum() / non_padding.int().sum()
 
-        mean_sim, sim_loss = self.calc_similarity(
-            outputs.decoder_hidden_states[-1],
-            labels,
-            padding_id=self.criterion.ignore_index,
-            calc_sim_weight=False if self.cfg.disparate else True,
-        )
+        if self.cfg.disparate:
+            mean_sim, sim_loss = self.calc_similarity(
+                outputs.decoder_hidden_states[-1],
+                labels,
+                padding_id=self.criterion.ignore_index,
+            )
+        else:
+            with torch.no_grad():
+                mean_sim, sim_loss = self.calc_similarity(
+                    outputs.decoder_hidden_states[-1],
+                    labels,
+                    padding_id=self.criterion.ignore_index,
+                )
 
         self.log_dict(
             {
@@ -261,6 +270,13 @@ class ConversationTransformer(Seq2SeqTransformer):
             },
             add_dataloader_idx=False,
         )
+        if prefix == 'val':
+            best_val_loss = self.trainer.logged_metrics.get('val_loss', float('inf'))
+            if ce_loss < best_val_loss:
+                self.log(
+                    'best_val_loss', ce_loss,
+                    add_dataloader_idx=False,
+                )
 
         final_loss = ce_loss
         if self.cfg.disparate: # report cosine when not using disparate regulariser

@@ -9,7 +9,7 @@ dataset:
 
 task:
   cfg:
-    task_name: conversation_disparity_spos
+    task_name: conversation_contrastive
 
 training:
   lr: 1e-5
@@ -21,4 +21,4 @@ trainer:
   limit_val_batches: 200
   # limit_test_batches: 2
   logger:
-    project: disparity-spos2
+    project: contrastive
