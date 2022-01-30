@@ -270,13 +270,13 @@ class ConversationTransformer(Seq2SeqTransformer):
             },
             add_dataloader_idx=False,
         )
-        if prefix == 'val':
-            best_val_loss = self.trainer.logged_metrics.get('val_loss', float('inf'))
-            if ce_loss < best_val_loss:
-                self.log(
-                    'best_val_loss', ce_loss,
-                    add_dataloader_idx=False,
-                )
+        # if prefix == 'val':
+        #     best_val_loss = self.trainer.logged_metrics.get('val_loss', float('inf'))
+        #     if ce_loss < best_val_loss:
+        #         self.log(
+        #             'best_val_loss', ce_loss,
+        #             add_dataloader_idx=False,
+        #         )
 
         final_loss = ce_loss
         if self.cfg.disparate: # report cosine when not using disparate regulariser
