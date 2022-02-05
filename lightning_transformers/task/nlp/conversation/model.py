@@ -21,7 +21,7 @@ from hydra.utils import get_class
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from torch import nn
 from transformers import AutoConfig, AutoModel, BlenderbotForConditionalGeneration, BlenderbotModel, Conversation
-from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
+from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions, Seq2SeqLMOutput
 from transformers.models.blenderbot.configuration_blenderbot import BlenderbotConfig
 from transformers.models.blenderbot.modeling_blenderbot import (
     BlenderbotDecoder,
@@ -61,18 +61,24 @@ class ConversationTransformer(Seq2SeqTransformer):
         **model_data_kwargs,
     ) -> None:
         self.save_hyperparameters()
-        if cfg.scratch:
-            config = AutoConfig.from_pretrained(backbone.pretrained_model_name_or_path)
+        model_cls = None
+        if cfg.clr:
             if cfg.strengthen_position:
-                model = BlenderbotForConditionalGenerationSPOS(config)
+                model_cls = BlenderbotForConditionalGenerationClrSPos
             else:
-                model = BlenderbotForConditionalGeneration(config)
+                model_cls = BlenderbotForConditionalGenerationClr
         else:
             if cfg.strengthen_position:
-                model = BlenderbotForConditionalGenerationSPOS.from_pretrained(backbone.pretrained_model_name_or_path)
+                model_cls = BlenderbotForConditionalGenerationSPos
             else:
-                model_cls: Type["AutoModel"] = get_class(downstream_model_type)
-                model = model_cls.from_pretrained(backbone.pretrained_model_name_or_path, **model_data_kwargs)
+                model_cls = BlenderbotForConditionalGeneration
+            
+        if cfg.scratch:
+            config = AutoConfig.from_pretrained(backbone.pretrained_model_name_or_path)
+            model = model_cls(config)
+        else:
+            model = model_cls.from_pretrained(backbone.pretrained_model_name_or_path)
+
         super(HFTransformer, self).__init__(model=model, optimizer=optimizer, scheduler=scheduler, instantiator=instantiator, cfg=cfg)
         self._tokenizer = tokenizer  # necessary for hf_pipeline
         self._hf_pipeline = None
@@ -243,6 +249,7 @@ class ConversationTransformer(Seq2SeqTransformer):
         outputs = self.model(decoder_input_ids=decoder_input_ids, output_hidden_states=True, **batch)
         # loss = outputs[0]
         logits = outputs.logits
+
         non_padding = labels != self.criterion.ignore_index
 
         # calculate CE loss
@@ -329,6 +336,7 @@ class ConversationTransformer(Seq2SeqTransformer):
             }
 
     def common_eval_step(self, prefix: str, batch: Any) -> torch.Tensor:
+        ngram_counts = None
         if self.cfg.compute_generate_metrics:
             ngram_counts = self.compute_generate_metrics(batch, prefix)
 
@@ -505,7 +513,88 @@ class ConversationTransformer(Seq2SeqTransformer):
         return "conversational"
 
 
-class BlenderbotForConditionalGenerationSPOS(BlenderbotForConditionalGeneration):
+class BlenderbotForConditionalGenerationClr(BlenderbotForConditionalGeneration):
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        decoder_input_ids=None,
+        decoder_attention_mask=None,
+        head_mask=None,
+        decoder_head_mask=None,
+        cross_attn_head_mask=None,
+        encoder_outputs=None,
+        past_key_values=None,
+        inputs_embeds=None,
+        decoder_inputs_embeds=None,
+        labels=None,
+        use_cache=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+    ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        if labels is not None:
+            if decoder_input_ids is None:
+                decoder_input_ids = shift_tokens_right(
+                    labels, self.config.pad_token_id, self.config.decoder_start_token_id
+                )
+
+        outputs = self.model(
+            input_ids,
+            attention_mask=attention_mask,
+            decoder_input_ids=decoder_input_ids,
+            encoder_outputs=encoder_outputs,
+            decoder_attention_mask=decoder_attention_mask,
+            head_mask=head_mask,
+            decoder_head_mask=decoder_head_mask,
+            cross_attn_head_mask=cross_attn_head_mask,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+            decoder_inputs_embeds=decoder_inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        
+        hidden_states = F.normalize(outputs[0], dim=-1)
+        bsz, seq_len, hid_sz = hidden_states.size()
+        w = F.normalize(self.lm_head.weight.data, dim=-1)
+        # lm_logits = w.bmm(hidden_states.transpose(1, 2))
+        lm_logits = hidden_states.view(-1, hid_sz).mm(w.T).view(bsz, seq_len, -1) / 0.02 # temperature
+
+        masked_lm_loss = None
+
+        if not return_dict:
+            output = (lm_logits,) + outputs[1:]
+            return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
+
+        return Seq2SeqLMOutput(
+            loss=masked_lm_loss,
+            logits=lm_logits,
+            past_key_values=outputs.past_key_values,
+            decoder_hidden_states=outputs.decoder_hidden_states,
+            decoder_attentions=outputs.decoder_attentions,
+            cross_attentions=outputs.cross_attentions,
+            encoder_last_hidden_state=outputs.encoder_last_hidden_state,
+            encoder_hidden_states=outputs.encoder_hidden_states,
+            encoder_attentions=outputs.encoder_attentions,
+        )
+
+
+class BlenderbotForConditionalGenerationClrSPos(BlenderbotForConditionalGenerationClr):
+    def __init__(self, config: BlenderbotConfig):
+        super(BlenderbotForConditionalGeneration, self).__init__(config)
+        self.model = BlenderbotModelSPOS(config)
+        self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
+        self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
+
+        self.init_weights()
+
+
+class BlenderbotForConditionalGenerationSPos(BlenderbotForConditionalGeneration):
     def __init__(self, config: BlenderbotConfig):
         super(BlenderbotForConditionalGeneration, self).__init__(config)
         self.model = BlenderbotModelSPOS(config)
