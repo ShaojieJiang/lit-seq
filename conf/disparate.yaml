@@ -25,5 +25,5 @@ task:
     negative_method: cl2 # cl1, ul
     scratch: False
     save_generation_path: null # ${trainer.default_root_dir}/generated.txt
-    clr: True # contrastive learning representation from SimCLR
+    clr: False # contrastive learning representation from SimCLR
     # compute_generate_metrics: False
