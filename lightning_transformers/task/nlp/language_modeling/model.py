@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from torch.nn import CrossEntropyLoss
+
 from lightning_transformers.core.nlp import HFTransformer
 
 
@@ -25,15 +27,24 @@ class LanguageModelingTransformer(HFTransformer):
 
     def __init__(self, *args, downstream_model_type: str = "transformers.AutoModelForCausalLM", **kwargs) -> None:
         super().__init__(downstream_model_type, *args, **kwargs)
+        self.criterion = CrossEntropyLoss(reduction='none')
 
     def on_fit_start(self):
         tokenizer_length = len(self.tokenizer)
         self.model.resize_token_embeddings(tokenizer_length)
 
     def _step(self, batch, batch_idx):
+        labels = batch.pop('labels')
         outputs = self.model(**batch)
-        loss = outputs[0]
-        return loss
+
+        logits = outputs.logits
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_labels = labels[..., 1:].contiguous()
+        # Flatten the tokens
+        loss = self.criterion(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+
+        # loss = outputs[0]
+        return loss[-self.cfg.lm_stride:].mean()
 
     def training_step(self, batch, batch_idx):
         loss = self._step(batch, batch_idx)

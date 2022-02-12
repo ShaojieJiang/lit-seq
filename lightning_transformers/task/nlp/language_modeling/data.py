@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from functools import partial
-from typing import Callable, Optional, Union
+from typing import Callable, Optional
 
 from datasets import Dataset
 from pytorch_lightning import _logger as log
-from transformers import PreTrainedTokenizerBase, default_data_collator
+from transformers import default_data_collator
 
 from lightning_transformers.core.nlp import HFDataModule
 from lightning_transformers.task.nlp.language_modeling.config import LanguageModelingDataConfig
@@ -41,17 +41,20 @@ class LanguageModelingDataModule(HFDataModule):
         column_names = dataset["train" if stage == "fit" else "validation"].column_names
         text_column_name = "text" if "text" in column_names else column_names[0]
 
-        tokenize_function = partial(self.tokenize_function, tokenizer=self.tokenizer, text_column_name=text_column_name)
+        # tokenize_function = partial(self.tokenize_function, tokenizer=self.tokenizer, text_column_name=text_column_name)
 
-        dataset = dataset.map(
-            tokenize_function,
-            batched=True,
-            num_proc=self.cfg.preprocessing_num_workers,
-            remove_columns=column_names,
-            load_from_cache_file=self.cfg.load_from_cache_file,
-        )
+        for key in dataset.keys():
+            dataset[key] = Dataset.from_dict(self.tokenizer([' '.join(dataset[key]['text'])]))
+            
+        # dataset = dataset.map(
+        #     tokenize_function,
+        #     batched=True,
+        #     num_proc=self.cfg.preprocessing_num_workers,
+        #     remove_columns=column_names,
+        #     load_from_cache_file=self.cfg.load_from_cache_file,
+        # )
 
-        convert_to_features = partial(self.convert_to_features, block_size=self.effective_block_size)
+        convert_to_features = partial(self.convert_to_features, block_size=self.effective_block_size, stride=self.cfg.stride)
 
         dataset = dataset.map(
             convert_to_features,
@@ -82,16 +85,16 @@ class LanguageModelingDataModule(HFDataModule):
             block_size = min(self.cfg.block_size, self.tokenizer.model_max_length)
         return block_size
 
-    @staticmethod
-    def tokenize_function(
-        examples,
-        tokenizer: Union[PreTrainedTokenizerBase],
-        text_column_name: str = None,
-    ):
-        return tokenizer(examples[text_column_name])
+    # @staticmethod
+    # def tokenize_function(
+    #     examples,
+    #     tokenizer,
+    #     text_column_name: str = None,
+    # ):
+    #     return tokenizer(examples[text_column_name])
 
     @staticmethod
-    def convert_to_features(examples, block_size: int, **kwargs):
+    def convert_to_features(examples, block_size: int, stride: int, **kwargs):
         # Concatenate all texts.
         concatenated_examples = {k: sum(examples[k], []) for k in examples.keys()}
         total_length = len(concatenated_examples[list(examples.keys())[0]])
@@ -100,7 +103,7 @@ class LanguageModelingDataModule(HFDataModule):
         total_length = (total_length // block_size) * block_size
         # Split by chunks of max_len.
         result = {
-            k: [t[i : i + block_size] for i in range(0, total_length, block_size)]
+            k: [t[i : i + block_size] for i in range(0, total_length, stride)]
             for k, t in concatenated_examples.items()
         }
         result["labels"] = result["input_ids"].copy()
