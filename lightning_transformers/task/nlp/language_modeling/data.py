@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from functools import partial
+from importlib import import_module
 from typing import Callable, Optional
 
-from datasets import Dataset
+from datasets import Dataset, load_dataset
 from pytorch_lightning import _logger as log
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from transformers import default_data_collator
 
 from lightning_transformers.core.nlp import HFDataModule
@@ -37,22 +39,48 @@ class LanguageModelingDataModule(HFDataModule):
     def __init__(self, *args, cfg: LanguageModelingDataConfig = LanguageModelingDataConfig(), **kwargs) -> None:
         super().__init__(*args, cfg=cfg, **kwargs)
 
+    def load_dataset(self) -> Dataset:
+        # Allow custom data files when loading the dataset
+        data_files = {}
+        if self.cfg.train_file is not None:
+            data_files["train"] = self.cfg.train_file
+        if self.cfg.validation_file is not None:
+            data_files["validation"] = self.cfg.validation_file
+        if self.cfg.test_file is not None:
+            data_files["test"] = self.cfg.test_file
+
+        data_files = data_files if data_files else None
+        if self.cfg.dataset_name is not None:
+            # Download and load the Huggingface dataset.
+            dataset_module = import_module(f'..datasets.{self.cfg.dataset_name}', self.__module__)
+            return load_dataset(
+                path=dataset_module.__file__,
+                name=self.cfg.dataset_config_name,
+                cache_dir=self.cfg.cache_dir,
+                data_files=data_files,
+            )
+
+        # Load straight from data files
+        if not data_files:
+            raise MisconfigurationException(
+                "You have not specified a dataset name. A custom train and validation file is required"
+            )
+        extension = self.cfg.train_file.split(".")[-1]
+        return load_dataset(extension, data_files=data_files)
+
     def process_data(self, dataset: Dataset, stage: Optional[str] = None) -> Dataset:
         column_names = dataset["train" if stage == "fit" else "validation"].column_names
         text_column_name = "text" if "text" in column_names else column_names[0]
 
-        # tokenize_function = partial(self.tokenize_function, tokenizer=self.tokenizer, text_column_name=text_column_name)
-
-        for key in dataset.keys():
-            dataset[key] = Dataset.from_dict(self.tokenizer([' '.join(dataset[key]['text'])]))
+        tokenize_function = partial(self.tokenize_function, tokenizer=self.tokenizer, text_column_name=text_column_name)
             
-        # dataset = dataset.map(
-        #     tokenize_function,
-        #     batched=True,
-        #     num_proc=self.cfg.preprocessing_num_workers,
-        #     remove_columns=column_names,
-        #     load_from_cache_file=self.cfg.load_from_cache_file,
-        # )
+        dataset = dataset.map(
+            tokenize_function,
+            batched=True,
+            num_proc=self.cfg.preprocessing_num_workers,
+            remove_columns=column_names,
+            load_from_cache_file=self.cfg.load_from_cache_file,
+        )
 
         convert_to_features = partial(self.convert_to_features, block_size=self.effective_block_size, stride=self.cfg.stride)
 
@@ -85,13 +113,13 @@ class LanguageModelingDataModule(HFDataModule):
             block_size = min(self.cfg.block_size, self.tokenizer.model_max_length)
         return block_size
 
-    # @staticmethod
-    # def tokenize_function(
-    #     examples,
-    #     tokenizer,
-    #     text_column_name: str = None,
-    # ):
-    #     return tokenizer(examples[text_column_name])
+    @staticmethod
+    def tokenize_function(
+        examples,
+        tokenizer,
+        text_column_name: str = None,
+    ):
+        return tokenizer(examples[text_column_name])
 
     @staticmethod
     def convert_to_features(examples, block_size: int, stride: int, **kwargs):
