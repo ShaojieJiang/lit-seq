@@ -14,8 +14,9 @@ backbone:
 dataset:
   cfg:
     eval_batch_size: 12
-    block_size: 1024
-    stride: 512
+    block_size: 512
+    stride: 256
+    # dataset_config_name: wikitext-103-raw-v1
 
 task:
   # _target_: lightning_transformers.task.nlp.conversation.ConversationTransformer

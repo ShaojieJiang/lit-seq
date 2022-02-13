@@ -106,6 +106,9 @@ class LanguageModelingDataModule(HFDataModule):
             k: [t[i : i + block_size] for i in range(0, total_length, stride)]
             for k, t in concatenated_examples.items()
         }
+        if len(result['input_ids'][-1]) < block_size:
+            result['input_ids'] = result['input_ids'][:-1]
+            result['attention_mask'] = result['attention_mask'][:-1]
         result["labels"] = result["input_ids"].copy()
         return result
 
