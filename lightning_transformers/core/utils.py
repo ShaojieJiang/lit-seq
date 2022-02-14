@@ -15,8 +15,11 @@ import inspect
 import os
 import re
 import warnings
+from collections import Counter
 from typing import Mapping, Optional, Sequence, Type, Union
 
+import torch
+import torch.nn.functional as F
 from datasets.arrow_dataset import Dataset
 from datasets.builder import DatasetBuilder
 from datasets.dataset_dict import DatasetDict, IterableDatasetDict
@@ -276,3 +279,197 @@ def normalize_dailydialog_text(text: str, version=1) -> str:
     new_text = new_text.strip()
 
     return new_text
+
+
+def get_unique_total_ngrams(batch_generations, bos_id, eos_id, pad_id):
+    assert type(batch_generations) is torch.Tensor
+    batch_generations = batch_generations.cpu().numpy()
+
+    res = Counter()
+    ngrams = Counter()
+    for pred in batch_generations:
+        # trim special tokens
+        pred = pred[pred != bos_id]
+        pred = pred[pred != eos_id]
+        pred = pred[pred != pad_id].tolist()
+
+        # get ngrams
+        bigrams = [tuple(pred[i:i+2]) for i in range(len(pred) - 1)]
+        trigrams = [tuple(pred[i:i+3]) for i in range(len(pred) - 2)]
+        fourgrams = [tuple(pred[i:i+4]) for i in range(len(pred) - 3)]
+
+        # count total and distinct numbers
+        res.update(
+            {
+                'num_unigrams': len(pred),
+                'num_bigrams': len(bigrams),
+                'num_trigrams': len(trigrams),
+                'num_fourgrams': len(fourgrams),
+                'uniq_unigrams': len(set(pred)),
+                'uniq_bigrams': len(set(bigrams)),
+                'uniq_trigrams': len(set(trigrams)),
+                'uniq_fourgrams': len(set(fourgrams)),
+            }
+        )
+        ngrams.update(
+            {
+                'unigrams': pred,
+                'bigrams': bigrams,
+                'trigrams': trigrams,
+                'fourgrams': fourgrams,
+            }
+        )
+    # reduce unique ngrams and add to res
+    for key, val in ngrams.items():
+        res[key] = list(set(val))
+    return res
+
+    
+def repeated_ngrams(tensor, n):
+    mask = torch.zeros_like(tensor)
+    for i, x in enumerate(tensor):
+        seen = set()
+        xl = x.tolist()
+        for j in range(len(x)-n):
+            ng = tuple(xl[j:j+n])
+            if ng in seen:
+                mask[i, j:j+n] = 1
+            seen.add(ng)
+    return mask
+
+    
+def calc_vector_similarity(
+    hidden_states,
+    indices,
+    padding_id=0,
+    padding_mask=True,
+    identical_mask=False,
+    disparate=False,
+    sim_threshold=0,
+):
+    non_padding = indices != padding_id
+
+    sim_mask = 1 - torch.eye(indices.size(1)).to(indices.device) # don't penalise self similarity
+    sim_mask = sim_mask.repeat(indices.size(0), 1, 1)
+    if padding_mask: # don't calc similarity for padding tokens
+        tokens_mask = non_padding.float().unsqueeze(-1).bmm(non_padding.float().unsqueeze(1)).int()
+        sim_mask *= tokens_mask
+    
+    if identical_mask: # id_mask entails padding mask
+        different_tokens = (indices.unsqueeze(-1) != indices.unsqueeze(1)).int()
+        sim_mask *= different_tokens
+        
+    vector_represen = F.normalize(hidden_states, dim=-1)
+    pair_sim = vector_represen.bmm(vector_represen.transpose(1, 2))
+    # report the avg similarity of all
+    cos_sim = (pair_sim * sim_mask).sum() / (sim_mask.sum() + 1e-8) # get average cosine similarity
+
+    cut_cos_sim = None
+    if disparate:
+        sim_mask *= (pair_sim >= sim_threshold).int()
+        # report the avg similarity of all
+        cut_cos_sim = (pair_sim * sim_mask).sum() / (sim_mask.sum() + 1e-8) # get average cosine similarity
+
+    return cos_sim, cut_cos_sim
+
+    
+def negative_sampling(
+    logits=None,
+    labels=None,
+    pad_id=0,
+    topk_hard_negatives=0,
+    preced_k_negatives=-1,
+):
+    neg_exs = None
+    topk_preds = None
+    if topk_hard_negatives > 0:
+        _, topk_preds = logits.topk(k=topk_hard_negatives)
+    
+    if topk_preds is not None:
+        neg_exs = topk_preds
+    
+    preced_tokens = None
+    if preced_k_negatives >= 0: # use previous k tokens as negatives
+        preced_tokens = labels.unsqueeze(1).expand(labels.size(0), labels.size(1), labels.size(1)).tril(-1)
+        if preced_k_negatives > 0:
+            preced_tokens = preced_tokens.triu(- preced_k_negatives) # discard further preced tokens
+
+    if preced_tokens is not None:
+        if neg_exs is None:
+            neg_exs = preced_tokens
+        else:
+            neg_exs = torch.cat([neg_exs, preced_tokens], dim=-1)
+
+    neg_exs = neg_exs.masked_fill(neg_exs == labels.unsqueeze(-1), pad_id) # exclude same label tokens as negatives
+
+    return neg_exs
+    
+def negative_loss(
+    logits, target_inds, orig_pad_id=0, method='cl2',
+    pad_id=0, topk_hard_negatives=0, preced_k_negatives=-1,
+):
+    non_padding = target_inds != orig_pad_id
+    labels = target_inds * (target_inds >= 0).int()
+
+    neg_exs = negative_sampling(
+        logits=logits, labels=labels, pad_id=pad_id,
+        topk_hard_negatives=topk_hard_negatives,
+        preced_k_negatives=preced_k_negatives,
+    )
+
+    negative_targets = torch.zeros_like(logits).scatter_(2, neg_exs, 1)
+    negative_targets.scatter_(2, torch.zeros_like(labels).unsqueeze(-1) + pad_id, 0) # don't treat the pad_id as negative example
+
+    if method == 'ul':
+        # penalise previous tokens
+        probs = logits.softmax(dim=-1)
+        token_ul = -torch.log(torch.clamp(1 - probs, min=1e-20)) * negative_targets
+        token_ul = token_ul.sum(dim=-1) * non_padding.int()
+        ul_loss = token_ul.sum() / non_padding.int().sum()
+
+        return ul_loss
+    else:
+        gt_scores = logits.gather(2, labels.unsqueeze(-1))
+
+        if method == 'cl1':
+            # contrastive with previous tokens
+            # this implementation doesn't consider repeated negatives
+            neg_minus_pos = logits - gt_scores
+            exp = neg_minus_pos.exp() * negative_targets
+            sum_exp = exp.sum(dim=-1)
+        elif method == 'cl2':
+            # this cl implementation consideres repeated netatives
+            pad_mask = (neg_exs != pad_id).int()
+            neg_scores = logits.gather(2, neg_exs)
+            neg_minus_pos = neg_scores - gt_scores
+            exp = neg_minus_pos.exp()
+            sum_exp = (exp * pad_mask).sum(dim=-1) # don't use pad tokens as negatives
+
+        losses = (1 + sum_exp).log() * non_padding.int()
+        cl_loss = losses.sum() / non_padding.int().sum()
+
+        return cl_loss
+    
+def compute_seq_ul(batch, model, pad_id, min_length):
+    generated = model.generate.__wrapped__(
+        model,
+        input_ids=batch['input_ids'],
+        attention_mask=batch['attention_mask'],
+        num_beams=1,
+        max_length=50,
+        no_repeat_ngram_size=0,
+        encoder_no_repeat_ngram_size=0,
+        min_length=min_length,
+        return_dict_in_generate=True,
+        output_scores=True,
+    )
+    gen_logits = torch.cat([scores.unsqueeze(1) for scores in generated.scores], dim=1)
+    gen_probs = gen_logits.softmax(dim=-1)
+    pred_probs = gen_probs.gather(2, generated.sequences[:, 1:].unsqueeze(-1))
+    one_minus_probs = torch.clamp(1 - pred_probs, min=1e-20).squeeze(-1)
+    repeated = repeated_ngrams(generated.sequences[:, 1:], n=4)
+    repeated *= generated.sequences[:, 1:] != pad_id
+    seq_ul = -torch.log(one_minus_probs) * repeated
+    seq_ul = seq_ul.sum()
+    
+    return seq_ul

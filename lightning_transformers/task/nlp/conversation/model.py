@@ -13,14 +13,13 @@
 # limitations under the License.
 import random
 from collections import Counter
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional
 
 import torch
 import torch.nn.functional as F
-from hydra.utils import get_class
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from torch import nn
-from transformers import AutoConfig, AutoModel, BlenderbotForConditionalGeneration, BlenderbotModel, Conversation
+from transformers import AutoConfig, BlenderbotForConditionalGeneration, BlenderbotModel, Conversation
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions, Seq2SeqLMOutput
 from transformers.models.blenderbot.configuration_blenderbot import BlenderbotConfig
 from transformers.models.blenderbot.modeling_blenderbot import (
@@ -36,6 +35,12 @@ from lightning_transformers.core.instantiator import Instantiator
 from lightning_transformers.core.nlp.config import HFBackboneConfig
 from lightning_transformers.core.nlp.model import HFTransformer
 from lightning_transformers.core.nlp.seq2seq import Seq2SeqTransformer
+from lightning_transformers.core.utils import (
+    calc_vector_similarity,
+    compute_seq_ul,
+    get_unique_total_ngrams,
+    negative_loss,
+)
 
 
 class ConversationTransformer(Seq2SeqTransformer):
@@ -113,135 +118,6 @@ class ConversationTransformer(Seq2SeqTransformer):
         rep_gen.update(rep_tf)
 
         return rep_gen
-    
-    def compute_seq_ul(self, batch):
-        pad_id = self.tokenizer.pad_token_id
-
-        generated = self.model.generate.__wrapped__(
-            self.model,
-            input_ids=batch['input_ids'],
-            attention_mask=batch['attention_mask'],
-            num_beams=1,
-            max_length=50,
-            no_repeat_ngram_size=0,
-            encoder_no_repeat_ngram_size=0,
-            min_length=self.cfg.min_length,
-            return_dict_in_generate=True,
-            output_scores=True,
-        )
-        gen_logits = torch.cat([scores.unsqueeze(1) for scores in generated.scores], dim=1)
-        gen_probs = gen_logits.softmax(dim=-1)
-        pred_probs = gen_probs.gather(2, generated.sequences[:, 1:].unsqueeze(-1))
-        one_minus_probs = torch.clamp(1 - pred_probs, min=1e-20).squeeze(-1)
-        repeated = self.repeated_ngrams(generated.sequences[:, 1:], n=4)
-        repeated *= generated.sequences[:, 1:] != pad_id
-        seq_ul = -torch.log(one_minus_probs) * repeated
-        seq_ul = seq_ul.sum()
-        
-        return seq_ul
-    
-    def repeated_ngrams(self, tensor, n):
-        mask = torch.zeros_like(tensor)
-        for i, x in enumerate(tensor):
-            seen = set()
-            xl = x.tolist()
-            for j in range(len(x)-n):
-                ng = tuple(xl[j:j+n])
-                if ng in seen:
-                    mask[i, j:j+n] = 1
-                seen.add(ng)
-        return mask
-    
-    def calc_similarity(self, hidden_states, indices, padding_id=0):
-        non_padding = indices != padding_id
-
-        sim_mask = 1 - torch.eye(indices.size(1)).to(indices.device) # don't penalise self similarity
-        sim_mask = sim_mask.repeat(indices.size(0), 1, 1)
-        if self.cfg.padding_mask: # don't calc similarity for padding tokens
-            tokens_mask = non_padding.float().unsqueeze(-1).bmm(non_padding.float().unsqueeze(1)).int()
-            sim_mask *= tokens_mask
-        
-        if self.cfg.identical_mask: # id_mask entails padding mask
-            different_tokens = (indices.unsqueeze(-1) != indices.unsqueeze(1)).int()
-            sim_mask *= different_tokens
-            
-        vector_represen = F.normalize(hidden_states, dim=-1)
-        pair_sim = vector_represen.bmm(vector_represen.transpose(1, 2))
-        # report the avg similarity of all
-        cos_sim = (pair_sim * sim_mask).sum() / (sim_mask.sum() + 1e-8) # get average cosine similarity
-
-        cut_cos_sim = None
-        if self.cfg.disparate:
-            sim_mask *= (pair_sim >= self.cfg.sim_threshold).int()
-            # report the avg similarity of all
-            cut_cos_sim = (pair_sim * sim_mask).sum() / (sim_mask.sum() + 1e-8) # get average cosine similarity
-
-        return cos_sim, cut_cos_sim
-    
-    def negative_sampling(self, logits=None, labels=None, pad_id=0):
-        neg_exs = None
-        topk_preds = None
-        if self.cfg.topk_hard_negatives > 0:
-            _, topk_preds = logits.topk(k=self.cfg.topk_hard_negatives)
-        
-        if topk_preds is not None:
-            neg_exs = topk_preds
-        
-        preced_tokens = None
-        if self.cfg.preced_k_negatives >= 0: # use previous k tokens as negatives
-            preced_tokens = labels.unsqueeze(1).expand(labels.size(0), labels.size(1), labels.size(1)).tril(-1)
-            if self.cfg.preced_k_negatives > 0:
-                preced_tokens = preced_tokens.triu(- self.cfg.preced_k_negatives) # discard further preced tokens
-
-        if preced_tokens is not None:
-            if neg_exs is None:
-                neg_exs = preced_tokens
-            else:
-                neg_exs = torch.cat([neg_exs, preced_tokens], dim=-1)
-
-        neg_exs = neg_exs.masked_fill(neg_exs == labels.unsqueeze(-1), pad_id) # exclude same label tokens as negatives
-
-        return neg_exs
-    
-    def negative_loss(self, logits, target_inds, orig_pad_id=0, method='cl2'):
-        non_padding = target_inds != orig_pad_id
-        labels = target_inds * (target_inds >= 0).int()
-        pad_id = self.tokenizer.pad_token_id
-
-        neg_exs = self.negative_sampling(logits=logits, labels=labels, pad_id=pad_id)
-
-        negative_targets = torch.zeros_like(logits).scatter_(2, neg_exs, 1)
-        negative_targets.scatter_(2, torch.zeros_like(labels).unsqueeze(-1) + pad_id, 0) # don't treat the pad_id as negative example
-
-        if method == 'ul':
-            # penalise previous tokens
-            probs = logits.softmax(dim=-1)
-            token_ul = -torch.log(torch.clamp(1 - probs, min=1e-20)) * negative_targets
-            token_ul = token_ul.sum(dim=-1) * non_padding.int()
-            ul_loss = token_ul.sum() / non_padding.int().sum()
-
-            return ul_loss
-        else:
-            gt_scores = logits.gather(2, labels.unsqueeze(-1))
-
-            if method == 'cl1':
-                # contrastive with previous tokens
-                # this implementation doesn't consider repeated negatives
-                neg_minus_pos = logits - gt_scores
-                exp = neg_minus_pos.exp() * negative_targets
-                sum_exp = exp.sum(dim=-1)
-            elif method == 'cl2':
-                # this cl implementation consideres repeated netatives
-                pad_mask = (neg_exs != pad_id).int()
-                neg_scores = logits.gather(2, neg_exs)
-                neg_minus_pos = neg_scores - gt_scores
-                exp = neg_minus_pos.exp()
-                sum_exp = (exp * pad_mask).sum(dim=-1) # don't use pad tokens as negatives
-
-            losses = (1 + sum_exp).log() * non_padding.int()
-            cl_loss = losses.sum() / non_padding.int().sum()
-
-            return cl_loss
 
     def common_step(self, prefix: str, batch: Any) -> torch.Tensor:
         labels = batch.pop('labels')
@@ -257,17 +133,25 @@ class ConversationTransformer(Seq2SeqTransformer):
         ce_loss = loss.sum() / non_padding.int().sum()
 
         if self.cfg.disparate:
-            mean_sim, sim_loss = self.calc_similarity(
+            mean_sim, sim_loss = calc_vector_similarity(
                 outputs.decoder_hidden_states[-1],
                 labels,
                 padding_id=self.criterion.ignore_index,
+                padding_mask=self.cfg.padding_mask,
+                identical_mask=self.cfg.identical_mask,
+                disparate=self.cfg.disparate,
+                sim_threshold=self.cfg.sim_threshold,
             )
         else:
             with torch.no_grad():
-                mean_sim, sim_loss = self.calc_similarity(
+                mean_sim, sim_loss = calc_vector_similarity(
                     outputs.decoder_hidden_states[-1],
                     labels,
                     padding_id=self.criterion.ignore_index,
+                    padding_mask=self.cfg.padding_mask,
+                    identical_mask=self.cfg.identical_mask,
+                    disparate=self.cfg.disparate,
+                    sim_threshold=self.cfg.sim_threshold,
                 )
 
         self.log_dict(
@@ -290,11 +174,14 @@ class ConversationTransformer(Seq2SeqTransformer):
             final_loss += self.cfg.disparate_alpha * sim_loss
 
         if self.cfg.topk_hard_negatives > 0 or self.cfg.preced_k_negatives > -1:
-            neg_loss = self.negative_loss(
+            neg_loss = negative_loss(
                 logits,
                 labels,
                 orig_pad_id=self.criterion.ignore_index,
                 method=self.cfg.negative_method,
+                pad_id=self.tokenizer.pad_token_id,
+                topk_hard_negatives=self.cfg.topk_hard_negatives,
+                preced_k_negatives=self.cfg.preced_k_negatives,
             )
             self.log(
                 f"{prefix}_neg_loss", neg_loss,
@@ -304,7 +191,7 @@ class ConversationTransformer(Seq2SeqTransformer):
             final_loss += neg_loss # the actual loss to backprop
         
         if self.cfg.unlikelihood:
-            seq_ul = self.compute_seq_ul(batch)
+            seq_ul = compute_seq_ul(batch, self.model, self.tokenizer.pad_token_id, self.cfg.min_length)
             self.log(
                 f"{prefix}_seq_ul", seq_ul,
                 add_dataloader_idx=False,
@@ -419,59 +306,17 @@ class ConversationTransformer(Seq2SeqTransformer):
                 f.write(f"{ctx}\n{res}\n\n")
             f.close()
 
-        ngram_counts = self.get_unique_total_ngrams(generated_tokens)
+        ngram_counts = get_unique_total_ngrams(
+            generated_tokens,
+            bos_id=self.tokenizer.bos_token_id,
+            eos_id=self.tokenizer.eos_token_id,
+            pad_id=self.tokenizer.pad_token_id,
+        )
         self.log(
             f'{prefix}_pred_len', (generated_tokens[:, 1:] != 0).sum(dim=-1),
             add_dataloader_idx=False,
         )
         return ngram_counts
-
-    def get_unique_total_ngrams(self, batch_generations):
-        assert type(batch_generations) is torch.Tensor
-        batch_generations = batch_generations.cpu().numpy()
-
-        bos_id = self.tokenizer.bos_token_id
-        eos_id = self.tokenizer.eos_token_id
-        pad_id = self.tokenizer.pad_token_id
-
-        res = Counter()
-        ngrams = Counter()
-        for pred in batch_generations:
-            # trim special tokens
-            pred = pred[pred != bos_id]
-            pred = pred[pred != eos_id]
-            pred = pred[pred != pad_id].tolist()
-
-            # get ngrams
-            bigrams = [tuple(pred[i:i+2]) for i in range(len(pred) - 1)]
-            trigrams = [tuple(pred[i:i+3]) for i in range(len(pred) - 2)]
-            fourgrams = [tuple(pred[i:i+4]) for i in range(len(pred) - 3)]
-
-            # count total and distinct numbers
-            res.update(
-                {
-                    'num_unigrams': len(pred),
-                    'num_bigrams': len(bigrams),
-                    'num_trigrams': len(trigrams),
-                    'num_fourgrams': len(fourgrams),
-                    'uniq_unigrams': len(set(pred)),
-                    'uniq_bigrams': len(set(bigrams)),
-                    'uniq_trigrams': len(set(trigrams)),
-                    'uniq_fourgrams': len(set(fourgrams)),
-                }
-            )
-            ngrams.update(
-                {
-                    'unigrams': pred,
-                    'bigrams': bigrams,
-                    'trigrams': trigrams,
-                    'fourgrams': fourgrams,
-                }
-            )
-        # reduce unique ngrams and add to res
-        for key, val in ngrams.items():
-            res[key] = list(set(val))
-        return res
 
     def generate(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> List[str]:
         # max_length = self.cfg.val_target_max_length if self.cfg.val_target_max_length else self.model.config.max_length
