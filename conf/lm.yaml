@@ -26,10 +26,10 @@ task:
     task_name: language_modeling
     scheduler_monitor: val_loss
     scheduler_mode: min
-    no_repeat_ngram_size: 3 # 3 by default
-    encoder_no_repeat_ngram_size: 3 # 3 by default
+    no_repeat_ngram_size: 0 # 3 by default
+    encoder_no_repeat_ngram_size: 0 # 3 by default
     min_length: 20 # 20 by default
-    num_beams: 10 # 10 by default
+    num_beams: 1 # 10 by default
     lm_stride: ${dataset.cfg.stride}
 
 trainer:
