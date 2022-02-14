@@ -33,6 +33,7 @@ from lightning_transformers.core.instantiator import Instantiator
 from lightning_transformers.core.nlp.config import HFBackboneConfig
 from lightning_transformers.core.nlp.model import HFTransformer
 from lightning_transformers.core.utils import (
+    calc_rep_tf,
     calc_vector_similarity,
     compute_seq_ul,
     negative_loss,
@@ -99,95 +100,17 @@ class ConversationTransformer(HFTransformer):
         loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1)).view(labels.size())
         ce_loss = loss.sum() / non_padding.int().sum()
 
-        if self.cfg.disparate:
-            mean_sim, sim_loss = calc_vector_similarity(
-                outputs.decoder_hidden_states[-1],
-                labels,
-                padding_id=self.criterion.ignore_index,
-                padding_mask=self.cfg.padding_mask,
-                identical_mask=self.cfg.identical_mask,
-                disparate=self.cfg.disparate,
-                sim_threshold=self.cfg.sim_threshold,
-            )
-        else:
-            with torch.no_grad():
-                mean_sim, sim_loss = calc_vector_similarity(
-                    outputs.decoder_hidden_states[-1],
-                    labels,
-                    padding_id=self.criterion.ignore_index,
-                    padding_mask=self.cfg.padding_mask,
-                    identical_mask=self.cfg.identical_mask,
-                    disparate=self.cfg.disparate,
-                    sim_threshold=self.cfg.sim_threshold,
-                )
-
-        self.log_dict(
-            {
-                f"{prefix}_loss": ce_loss,
-                f"{prefix}_similarity": mean_sim,
-            },
+        self.log(
+            f"{prefix}_loss", ce_loss,
             add_dataloader_idx=False,
         )
-        # if prefix == 'val':
-        #     best_val_loss = self.trainer.logged_metrics.get('val_loss', float('inf'))
-        #     if ce_loss < best_val_loss:
-        #         self.log(
-        #             'best_val_loss', ce_loss,
-        #             add_dataloader_idx=False,
-        #         )
 
-        final_loss = ce_loss
-        if self.cfg.disparate: # report cosine when not using disparate regulariser
-            final_loss += self.cfg.disparate_alpha * sim_loss
-
-        if self.cfg.topk_hard_negatives > 0 or self.cfg.preced_k_negatives > -1:
-            neg_loss = negative_loss(
-                logits,
-                labels,
-                orig_pad_id=self.criterion.ignore_index,
-                method=self.cfg.negative_method,
-                pad_id=self.tokenizer.pad_token_id,
-                topk_hard_negatives=self.cfg.topk_hard_negatives,
-                preced_k_negatives=self.cfg.preced_k_negatives,
-            )
-            self.log(
-                f"{prefix}_neg_loss", neg_loss,
-                add_dataloader_idx=False,
-            )
-
-            final_loss += neg_loss # the actual loss to backprop
-        
-        if self.cfg.unlikelihood:
-            seq_ul = compute_seq_ul(batch, self.model, self.tokenizer.pad_token_id, self.cfg.min_length)
-            self.log(
-                f"{prefix}_seq_ul", seq_ul,
-                add_dataloader_idx=False,
-            )
-            final_loss += self.cfg.ul_alpha * seq_ul
+        final_loss = ce_loss + self.calc_aux_loss(prefix, batch, outputs, labels)
         
         if self.training:
             return final_loss
         else:
-            preds = logits.argmax(dim=-1)
-            # mask padding
-            preds *= non_padding.int()
-            # mask identical tokens
-            different_tokens = (labels.unsqueeze(-1) != labels.unsqueeze(1)).int()
-            different_tokens = different_tokens.tril()
-            true_non_rep = different_tokens.sum(dim=-1) == torch.arange(preds.size(1)).to(preds.device)
-            preds *= true_non_rep.int()
-            # calculate rep-1
-            different_preds = (preds.unsqueeze(-1) != preds.unsqueeze(1)).int()
-            different_preds = different_preds.tril()
-            rep_preds = different_preds.sum(dim=-1) < torch.arange(preds.size(1)).to(preds.device)
-            rep_preds *= non_padding
-            num_repeated = rep_preds.sum(-1)
-            num_total = non_padding.sum(-1)
-
-            return {
-                'num_rep_tf': num_repeated.sum().item(),
-                'num_total_tf': num_total.sum().item(),
-            }
+            return calc_rep_tf(logits, non_padding, labels)
 
     def generate(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> List[str]:
         # max_length = self.cfg.val_target_max_length if self.cfg.val_target_max_length else self.model.config.max_length

@@ -11,9 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import List
+import torch
 from torch.nn import CrossEntropyLoss
 
 from lightning_transformers.core.nlp import HFTransformer
+from lightning_transformers.core.utils import calc_rep_tf
 
 
 class LanguageModelingTransformer(HFTransformer):
@@ -33,7 +36,7 @@ class LanguageModelingTransformer(HFTransformer):
         tokenizer_length = len(self.tokenizer)
         self.model.resize_token_embeddings(tokenizer_length)
 
-    def _step(self, batch, batch_idx):
+    def common_step(self, prefix, batch, batch_idx):
         labels = batch.pop('labels')
         outputs = self.model(**batch)
 
@@ -43,21 +46,33 @@ class LanguageModelingTransformer(HFTransformer):
         # Flatten the tokens
         loss = self.criterion(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
 
-        # loss = outputs[0]
-        return loss[-self.cfg.lm_stride:].mean()
+        self.log(
+            f"{prefix}_loss", loss[-self.cfg.lm_stride:].mean(), # only log the second part of the losses
+            add_dataloader_idx=False,
+        )
 
-    def training_step(self, batch, batch_idx):
-        loss = self._step(batch, batch_idx)
-        self.log("train_loss", loss)
-        return loss
+        final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, outputs, labels)
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        loss = self._step(batch, batch_idx)
-        self.log("val_loss", loss, sync_dist=True)
+        non_padding = labels != self.criterion.ignore_index
+        
+        if self.training:
+            return final_loss
+        else:
+            return calc_rep_tf(logits, non_padding, labels)
 
-    def test_step(self, batch, batch_idx, dataloader_idx=0):
-        loss = self._step(batch, batch_idx)
-        self.log("test_loss", loss, sync_dist=True)
+    def generate(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> List[str]:
+        # max_length = self.cfg.val_target_max_length if self.cfg.val_target_max_length else self.model.config.max_length
+        num_beams = self.cfg.num_beams if self.cfg.num_beams else self.model.config.num_beams
+        generated_tokens = self.model.generate(
+            input_ids=input_ids, attention_mask=attention_mask, num_beams=num_beams, # max_length=max_length,
+            no_repeat_ngram_size=self.cfg.no_repeat_ngram_size,
+            pad_token_id=self.tokenizer.eos_token_id,
+            min_length=130, max_length=150,
+        )
+        pred_str = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
+        pred_str = [str.strip(s) for s in pred_str]
+        prefix_len = input_ids.size(1)
+        return pred_str, generated_tokens[:, prefix_len:]
 
     @property
     def hf_pipeline_task(self) -> str:

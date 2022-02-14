@@ -13,7 +13,7 @@ from lightning_transformers.core.config import LitTaskConfig, OptimizerConfig, S
 from lightning_transformers.core.instantiator import Instantiator
 from lightning_transformers.core.model import TaskTransformer
 from lightning_transformers.core.nlp.config import HFBackboneConfig
-from lightning_transformers.core.utils import get_unique_total_ngrams
+from lightning_transformers.core.utils import calc_vector_similarity, compute_seq_ul, get_unique_total_ngrams, negative_loss
 
 if TYPE_CHECKING:
     from transformers import AutoModel, Pipeline
@@ -119,6 +119,67 @@ class HFTransformer(TaskTransformer):
         if self.trainer.global_step / max(self.trainer.max_steps, 1e-8) >= self.cfg.generate_after_progress:
             return True
         return False
+    
+    def calc_aux_loss(self, prefix: str, batch: Any, outputs, labels):
+        logits = outputs.logits
+        aux_loss = 0.0
+
+        if self.cfg.disparate:
+            mean_sim, sim_loss = calc_vector_similarity(
+                outputs.decoder_hidden_states[-1],
+                labels,
+                padding_id=self.criterion.ignore_index,
+                padding_mask=self.cfg.padding_mask,
+                identical_mask=self.cfg.identical_mask,
+                disparate=self.cfg.disparate,
+                sim_threshold=self.cfg.sim_threshold,
+            )
+        else:
+            with torch.no_grad():
+                mean_sim, sim_loss = calc_vector_similarity(
+                    outputs.decoder_hidden_states[-1],
+                    labels,
+                    padding_id=self.criterion.ignore_index,
+                    padding_mask=self.cfg.padding_mask,
+                    identical_mask=self.cfg.identical_mask,
+                    disparate=self.cfg.disparate,
+                    sim_threshold=self.cfg.sim_threshold,
+                )
+
+        self.log(
+            f"{prefix}_similarity", mean_sim,
+            add_dataloader_idx=False,
+        )
+
+        if self.cfg.disparate: # report cosine when not using disparate regulariser
+            aux_loss += self.cfg.disparate_alpha * sim_loss
+
+        if self.cfg.topk_hard_negatives > 0 or self.cfg.preced_k_negatives > -1:
+            neg_loss = negative_loss(
+                logits,
+                labels,
+                orig_pad_id=self.criterion.ignore_index,
+                method=self.cfg.negative_method,
+                pad_id=self.tokenizer.pad_token_id,
+                topk_hard_negatives=self.cfg.topk_hard_negatives,
+                preced_k_negatives=self.cfg.preced_k_negatives,
+            )
+            self.log(
+                f"{prefix}_neg_loss", neg_loss,
+                add_dataloader_idx=False,
+            )
+
+            aux_loss += neg_loss # the actual loss to backprop
+        
+        if self.cfg.unlikelihood:
+            seq_ul = compute_seq_ul(batch, self.model, self.tokenizer.pad_token_id, self.cfg.min_length)
+            self.log(
+                f"{prefix}_seq_ul", seq_ul,
+                add_dataloader_idx=False,
+            )
+            aux_loss += self.cfg.ul_alpha * seq_ul
+        
+        return aux_loss
 
     def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
         if type(batch) == list: # multi-tasking
