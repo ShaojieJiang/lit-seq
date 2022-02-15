@@ -105,7 +105,7 @@ class ConversationTransformer(HFTransformer):
             add_dataloader_idx=False,
         )
 
-        final_loss = ce_loss + self.calc_aux_loss(prefix, batch, outputs, labels)
+        final_loss = ce_loss + self.calc_aux_loss(prefix, batch, logits, outputs.decoder_hidden_states[-1], labels)
         
         if self.training:
             return final_loss

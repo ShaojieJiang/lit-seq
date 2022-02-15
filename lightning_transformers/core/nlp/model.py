@@ -120,13 +120,12 @@ class HFTransformer(TaskTransformer):
             return True
         return False
     
-    def calc_aux_loss(self, prefix: str, batch: Any, outputs, labels):
-        logits = outputs.logits
+    def calc_aux_loss(self, prefix: str, batch: Any, logits, hidden_states, labels):
         aux_loss = 0.0
 
         if self.cfg.disparate:
             mean_sim, sim_loss = calc_vector_similarity(
-                outputs.decoder_hidden_states[-1],
+                hidden_states,
                 labels,
                 padding_id=self.criterion.ignore_index,
                 padding_mask=self.cfg.padding_mask,
@@ -137,7 +136,7 @@ class HFTransformer(TaskTransformer):
         else:
             with torch.no_grad():
                 mean_sim, sim_loss = calc_vector_similarity(
-                    outputs.decoder_hidden_states[-1],
+                    hidden_states,
                     labels,
                     padding_id=self.criterion.ignore_index,
                     padding_mask=self.cfg.padding_mask,

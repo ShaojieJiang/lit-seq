@@ -31,14 +31,18 @@ class LanguageModelingTransformer(HFTransformer):
     def __init__(self, *args, downstream_model_type: str = "transformers.AutoModelForCausalLM", **kwargs) -> None:
         super().__init__(downstream_model_type, *args, **kwargs)
         self.criterion = CrossEntropyLoss(reduction='none')
+    
+    def setup(self, stage: str):
+        self.tokenizer.add_special_tokens({'pad_token': '<|endoftext|>'})
+        return super().setup(stage)
 
     def on_fit_start(self):
         tokenizer_length = len(self.tokenizer)
         self.model.resize_token_embeddings(tokenizer_length)
 
-    def common_step(self, prefix, batch, batch_idx):
+    def common_step(self, prefix, batch):
         labels = batch.pop('labels')
-        outputs = self.model(**batch)
+        outputs = self.model(output_hidden_states=True, **batch)
 
         logits = outputs.logits
         shift_logits = logits[..., :-1, :].contiguous()
@@ -51,7 +55,7 @@ class LanguageModelingTransformer(HFTransformer):
             add_dataloader_idx=False,
         )
 
-        final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, outputs, labels)
+        final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, logits, outputs.hidden_states[-1], labels)
 
         non_padding = labels != self.criterion.ignore_index
         
@@ -66,8 +70,8 @@ class LanguageModelingTransformer(HFTransformer):
         generated_tokens = self.model.generate(
             input_ids=input_ids, attention_mask=attention_mask, num_beams=num_beams, # max_length=max_length,
             no_repeat_ngram_size=self.cfg.no_repeat_ngram_size,
-            pad_token_id=self.tokenizer.eos_token_id,
-            min_length=130, max_length=150,
+            pad_token_id=self.tokenizer.pad_token_id,
+            max_length=input_ids.size(1) + self.cfg.generation_length,
         )
         pred_str = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
         pred_str = [str.strip(s) for s in pred_str]

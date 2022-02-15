@@ -390,9 +390,12 @@ def negative_sampling(
     
     preced_tokens = None
     if preced_k_negatives >= 0: # use previous k tokens as negatives
-        preced_tokens = labels.unsqueeze(1).expand(labels.size(0), labels.size(1), labels.size(1)).tril(-1)
+        preced_tokens = labels.unsqueeze(1).expand(labels.size(0), labels.size(1), labels.size(1))
+        mask = torch.ones_like(preced_tokens).bool()
+        mask = torch.ones_like(preced_tokens).tril(-1).bool()
         if preced_k_negatives > 0:
-            preced_tokens = preced_tokens.triu(- preced_k_negatives) # discard further preced tokens
+            mask = mask.triu(-preced_k_negatives)
+        preced_tokens = preced_tokens.masked_fill(~mask, pad_id)
 
     if preced_tokens is not None:
         if neg_exs is None:
