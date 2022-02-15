@@ -48,10 +48,10 @@ class LanguageModelingTransformer(HFTransformer):
         shift_logits = logits[..., :-1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous()
         # Flatten the tokens
-        loss = self.criterion(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+        loss = self.criterion(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1)).view(shift_labels.size())
 
         self.log(
-            f"{prefix}_loss", loss[-self.cfg.lm_stride:].mean(), # only log the second part of the losses
+            f"{prefix}_loss", loss[:, -self.cfg.lm_stride:].mean(), # only log the second part of the losses
             add_dataloader_idx=False,
         )
 
