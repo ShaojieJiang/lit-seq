@@ -55,7 +55,7 @@ class LanguageModelingTransformer(HFTransformer):
             add_dataloader_idx=False,
         )
 
-        final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, logits, outputs.hidden_states[-1], labels)
+        final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, shift_logits, outputs.hidden_states[-1][:, :-1, :], shift_labels)
 
         non_padding = labels != self.criterion.ignore_index
         
