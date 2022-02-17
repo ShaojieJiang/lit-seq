@@ -16,7 +16,7 @@ dataset:
     eval_batch_size: 12
     block_size: 512
     stride: 256
-    # dataset_config_name: wikitext-103-raw-v1
+    dataset_config_name: wikitext-103-raw-v1
 
 task:
   # _target_: lightning_transformers.task.nlp.conversation.ConversationTransformer
@@ -72,6 +72,6 @@ optimizer:
 experiment_name: ${now:%Y-%m-%d}_${now:%H-%M-%S-%f}
 log: True
 ignore_warnings: True # todo: check warnings before release
-seed: 33
+seed: 0
 stage: train # choose from train, test, (predict, interact, to be added)
 finetune_ckpt: null

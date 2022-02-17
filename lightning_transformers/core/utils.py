@@ -431,6 +431,13 @@ def negative_loss(
         ul_loss = token_ul.sum() / non_padding.int().sum()
 
         return ul_loss
+    elif method == 'ul2':
+        probs = logits.softmax(dim=-1)
+        sum_neg_probs = (probs * negative_targets).sum(dim=-1)
+        token_ul = -torch.log((1 - sum_neg_probs).clamp(min=1e-20)) * non_padding.int()
+        ul_loss = token_ul.sum() / non_padding.int().sum()
+
+        return ul_loss
     else:
         gt_scores = logits.gather(2, labels.unsqueeze(-1))
 
