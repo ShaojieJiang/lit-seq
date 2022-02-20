@@ -257,18 +257,22 @@ class HFTransformer(TaskTransformer):
         return ngram_counts
     
     def aggregate_outputs(self, outputs, prefix):
-        # aggregation strategy 1: add all #ngrams, #uniq_ngrams together, then take the division
         counts = Counter()
         for batch in outputs:
             counts.update(batch)
         for key, val in counts.items():
             if type(val) is list:
                 counts[key] = set(val)
+        self.log_dict(
+            {
+                f'{prefix}_accuracy': (counts['correct_tf'] + 1e-8) / (counts['num_total_tf'] + 1e-8),
+                f'{prefix}_rep_tf': (counts['num_rep_tf'] + 1e-8) / (counts['num_total_tf'] + 1e-8),
+            },
+            add_dataloader_idx=False,
+        )
         if self.should_generate or prefix == 'test':
             self.log_dict(
                 {
-                    f'{prefix}_accuracy': (counts['correct_tf'] + 1e-8) / (counts['num_total_tf'] + 1e-8),
-                    f'{prefix}_rep_tf': (counts['num_rep_tf'] + 1e-8) / (counts['num_total_tf'] + 1e-8),
                     f'{prefix}_uniq_1': len(counts['unigrams']),
                     f'{prefix}_uniq_2': len(counts['bigrams']),
                     f'{prefix}_uniq_3': len(counts['trigrams']),
@@ -284,11 +288,3 @@ class HFTransformer(TaskTransformer):
                 },
                 add_dataloader_idx=False,
             )
-        else:
-            self.log(
-                f'{prefix}_rep_tf',
-                (counts['num_rep_tf'] + 1e-8) / (counts['num_total_tf'] + 1e-8),
-                add_dataloader_idx=False,
-            )
-        # aggregation strategy 2: calc the repetition rate of each example, then average
-        # Update: This 2nd strategy doesn't expose the problem well
