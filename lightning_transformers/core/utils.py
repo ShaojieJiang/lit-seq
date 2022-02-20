@@ -485,24 +485,19 @@ def compute_seq_ul(batch, model, pad_id, min_length):
     return seq_ul
 
 
-def calc_rep_tf(logits, non_padding, labels):
+def calc_rep_tf_and_acc(logits, non_padding, labels):
     preds = logits.argmax(dim=-1)
-    # mask padding
-    preds *= non_padding.int()
-    # mask identical tokens
-    different_tokens = (labels.unsqueeze(-1) != labels.unsqueeze(1)).int()
-    different_tokens = different_tokens.tril()
-    true_non_rep = different_tokens.sum(dim=-1) == torch.arange(preds.size(1)).to(preds.device)
-    preds *= true_non_rep.int()
-    # calculate rep-1
-    different_preds = (preds.unsqueeze(-1) != preds.unsqueeze(1)).int()
-    different_preds = different_preds.tril()
-    rep_preds = different_preds.sum(dim=-1) < torch.arange(preds.size(1)).to(preds.device)
-    rep_preds *= non_padding
-    num_repeated = rep_preds.sum(-1)
-    num_total = non_padding.sum(-1)
+    correct = (preds == labels).int()
+    incorrect = 1 - correct
+    correct *= non_padding.int()
+    incorrect *= non_padding.int()
+
+    repeated = (preds.unsqueeze(-1) == preds.unsqueeze(1)).int()
+    repeated = repeated.tril(-1).sum(-1).clamp(max=1)
+    repeated *= incorrect
 
     return {
-        'num_rep_tf': num_repeated.sum().item(),
-        'num_total_tf': num_total.sum().item(),
+        'correct_tf': correct.sum().item(),
+        'num_rep_tf': repeated.sum().item(),
+        'num_total_tf': non_padding.sum().item(),
     }

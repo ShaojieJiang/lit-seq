@@ -33,7 +33,7 @@ from lightning_transformers.core.instantiator import Instantiator
 from lightning_transformers.core.nlp.config import HFBackboneConfig
 from lightning_transformers.core.nlp.model import HFTransformer
 from lightning_transformers.core.utils import (
-    calc_rep_tf,
+    calc_rep_tf_and_acc,
     calc_vector_similarity,
     compute_seq_ul,
     negative_loss,
@@ -110,7 +110,7 @@ class ConversationTransformer(HFTransformer):
         if self.training:
             return final_loss
         else:
-            return calc_rep_tf(logits, non_padding, labels)
+            return calc_rep_tf_and_acc(logits, non_padding, labels)
 
     def generate(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> List[str]:
         # max_length = self.cfg.val_target_max_length if self.cfg.val_target_max_length else self.model.config.max_length

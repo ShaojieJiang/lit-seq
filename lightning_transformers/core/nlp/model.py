@@ -267,6 +267,7 @@ class HFTransformer(TaskTransformer):
         if self.should_generate or prefix == 'test':
             self.log_dict(
                 {
+                    f'{prefix}_accuracy': (counts['correct_tf'] + 1e-8) / (counts['num_total_tf'] + 1e-8),
                     f'{prefix}_rep_tf': (counts['num_rep_tf'] + 1e-8) / (counts['num_total_tf'] + 1e-8),
                     f'{prefix}_uniq_1': len(counts['unigrams']),
                     f'{prefix}_uniq_2': len(counts['bigrams']),

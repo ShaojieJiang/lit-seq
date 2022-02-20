@@ -16,7 +16,7 @@ import torch
 from torch.nn import CrossEntropyLoss
 
 from lightning_transformers.core.nlp import HFTransformer
-from lightning_transformers.core.utils import calc_rep_tf
+from lightning_transformers.core.utils import calc_rep_tf_and_acc
 
 
 class LanguageModelingTransformer(HFTransformer):
@@ -62,7 +62,7 @@ class LanguageModelingTransformer(HFTransformer):
         if self.training:
             return final_loss
         else:
-            return calc_rep_tf(logits, non_padding, labels)
+            return calc_rep_tf_and_acc(logits, non_padding, labels)
 
     def generate(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> List[str]:
         # max_length = self.cfg.val_target_max_length if self.cfg.val_target_max_length else self.model.config.max_length
