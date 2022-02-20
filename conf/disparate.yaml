@@ -3,9 +3,6 @@ defaults: # loads default configs
   - override optimizer: adam
   - override scheduler: cosine_schedule_with_warmup
 
-scheduler:
-  num_warmup_steps: 3000
-
 task:
   cfg:
     no_repeat_ngram_size: 0 # 3 by default
@@ -27,3 +24,10 @@ task:
     save_generation_path: null # ${trainer.default_root_dir}/generated.txt
     clr: False # contrastive learning representation from SimCLR
     # compute_generate_metrics: False
+
+trainer:
+  limit_val_batches: 50
+  callbacks:
+    checkpoint_callback:
+      save_last: False
+      save_top_k: 0

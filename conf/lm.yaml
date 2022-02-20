@@ -13,7 +13,7 @@ backbone:
 
 dataset:
   cfg:
-    eval_batch_size: 12
+    eval_batch_size: 10
     block_size: 512
     stride: 256
     dataset_config_name: wikitext-103-raw-v1
@@ -63,8 +63,8 @@ trainer:
       save_top_k: 0
 
 training:
-  lr: 1e-7
-  batch_size: 2
+  lr: 1e-4
+  batch_size: 4
 
 optimizer:
   weight_decay: 0

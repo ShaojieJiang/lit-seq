@@ -22,3 +22,7 @@ trainer:
   # limit_test_batches: 2
   logger:
     project: contrastive
+  callbacks:
+    checkpoint_callback:
+      save_last: True
+      save_top_k: 1

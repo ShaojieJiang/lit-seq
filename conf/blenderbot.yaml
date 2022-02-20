@@ -40,7 +40,7 @@ trainer:
   resume_from_checkpoint: ${trainer.default_root_dir}/last.ckpt
   default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}/${experiment_name}
   logger:
-    project: tldr
+    project: contrastive
 
 training:
   lr: 0.05
