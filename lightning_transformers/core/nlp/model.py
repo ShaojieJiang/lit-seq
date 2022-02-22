@@ -13,7 +13,7 @@ from lightning_transformers.core.config import LitTaskConfig, OptimizerConfig, S
 from lightning_transformers.core.instantiator import Instantiator
 from lightning_transformers.core.model import TaskTransformer
 from lightning_transformers.core.nlp.config import HFBackboneConfig
-from lightning_transformers.core.utils import calc_vector_similarity, compute_seq_ul, get_unique_total_ngrams, negative_loss
+from lightning_transformers.core.utils import calc_vector_similarity, compute_seq_ul, contrastive_loss, get_unique_total_ngrams, negative_loss
 
 if TYPE_CHECKING:
     from transformers import AutoModel, Pipeline
@@ -153,16 +153,28 @@ class HFTransformer(TaskTransformer):
         if self.cfg.disparate: # report cosine when not using disparate regulariser
             aux_loss += self.cfg.disparate_alpha * sim_loss
 
-        if self.cfg.topk_hard_negatives > 0 or self.cfg.preced_k_negatives > -1:
-            neg_loss = negative_loss(
-                logits,
-                labels,
-                orig_pad_id=self.criterion.ignore_index,
-                method=self.cfg.negative_method,
-                pad_id=self.tokenizer.pad_token_id,
-                topk_hard_negatives=self.cfg.topk_hard_negatives,
-                preced_k_negatives=self.cfg.preced_k_negatives,
-            )
+        if self.cfg.topk_negatives or self.cfg.preced_k_negatives:
+            if self.cfg.negative_method.startswith('ul'):
+                neg_loss = negative_loss(
+                    logits,
+                    labels,
+                    orig_pad_id=self.criterion.ignore_index,
+                    method=self.cfg.negative_method,
+                    pad_id=self.tokenizer.pad_token_id,
+                    topk_negatives=self.cfg.topk_negatives,
+                    preced_k_negatives=self.cfg.preced_k_negatives,
+                )
+            elif self.cfg.negative_method.startswith('cl'):
+                neg_loss = contrastive_loss(
+                    logits,
+                    labels,
+                    orig_pad_id=self.criterion.ignore_index,
+                    pad_id=self.tokenizer.pad_token_id,
+                    topk_negatives=self.cfg.topk_negatives,
+                    preced_k_negatives=self.cfg.preced_k_negatives,
+                    topk_positives=self.cfg.topk_positives,
+                    neg_hardness=self.cfg.neg_hardness,
+                )
             self.log(
                 f"{prefix}_neg_loss", neg_loss,
                 add_dataloader_idx=False,

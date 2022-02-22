@@ -377,19 +377,19 @@ def negative_sampling(
     logits=None,
     labels=None,
     pad_id=0,
-    topk_hard_negatives=0,
-    preced_k_negatives=-1,
+    topk_negatives=0,
+    preced_k_negatives=0,
 ):
     neg_exs = None
     topk_preds = None
-    if topk_hard_negatives > 0:
-        _, topk_preds = logits.topk(k=topk_hard_negatives)
+    if topk_negatives > 0:
+        _, topk_preds = logits.topk(k=topk_negatives)
     
     if topk_preds is not None:
         neg_exs = topk_preds
     
     preced_tokens = None
-    if preced_k_negatives >= 0: # use previous k tokens as negatives
+    if preced_k_negatives: # use previous k tokens as negatives
         preced_tokens = labels.unsqueeze(1).expand(labels.size(0), labels.size(1), labels.size(1))
         mask = torch.ones_like(preced_tokens).bool()
         mask = torch.ones_like(preced_tokens).tril(-1).bool()
@@ -406,17 +406,96 @@ def negative_sampling(
     neg_exs = neg_exs.masked_fill(neg_exs == labels.unsqueeze(-1), pad_id) # exclude same label tokens as negatives
 
     return neg_exs
+
+
+def preced_negatives(
+    labels=None,
+    preced_k_negatives=0,
+    pad_id=0,
+):
+    preced_tokens = None
+    if preced_k_negatives: # use previous k tokens as negatives
+        preced_tokens = labels.unsqueeze(1).expand(labels.size(0), labels.size(1), labels.size(1))
+        mask = torch.ones_like(preced_tokens).bool()
+        mask = torch.ones_like(preced_tokens).tril(-1).bool()
+        if preced_k_negatives > 0:
+            mask = mask.triu(-preced_k_negatives)
+        preced_tokens = preced_tokens.masked_fill(~mask, pad_id)
+
+    if preced_tokens is not None:
+        preced_tokens = preced_tokens.masked_fill(preced_tokens == labels.unsqueeze(-1), pad_id) # exclude same label tokens as negatives
+
+    return preced_tokens
+
+
+def contrastive_loss(
+    logits, target_inds, orig_pad_id=0, # method='cl2',
+    pad_id=0, preced_k_negatives=0,
+    topk_positives=0, topk_negatives=0,
+    neg_hardness=0,
+):
+    if preced_k_negatives:
+        topk_positives = max(topk_positives, 1) # at least use top1 as positive examples
+
+    topk = max(topk_positives, topk_negatives)
+    if topk == 0: # no contrastive losses need to be calculated
+        return 0.0
+
+    labels = target_inds * (target_inds >= 0).int() # mask -100 padding tokens
+    non_padding = target_inds != orig_pad_id
+    topk_scores, topk_preds = logits.topk(k=topk)
+
+    # repetition loss: using topk as positives
+    preced_tokens = preced_negatives(labels, preced_k_negatives, pad_id)
+    repeat_loss = 0.0
+    if preced_k_negatives:
+        positive_scores = topk_scores[..., :topk_positives] # using too many positives can be too harsh
+        # label_scores = logits.gather(2, labels.unsqueeze(-1))
+        # positive_scores = torch.cat([positive_scores, label_scores], dim=-1)
+        # topk_preds = torch.cat([topk_preds, labels.unsqueeze(-1)], dim=-1)
+        false_positive_mask = (preced_tokens.unsqueeze(-1) == topk_preds.unsqueeze(-2)).int()
+        false_positive_mask = false_positive_mask.sum(-2).clamp(max=1)
+        false_positive_mask *= (topk_preds != pad_id).int()
+        false_positive_mask = false_positive_mask.unsqueeze(-2)
+        pad_mask = (preced_tokens != pad_id).int()
+        neg_scores = logits.gather(2, preced_tokens)
+        neg_minus_pos = neg_scores.unsqueeze(-1) - positive_scores.unsqueeze(-2)
+        exp = neg_minus_pos.exp()
+        exp = exp * false_positive_mask
+        # pad_mask *= (exp <= pos_hardness).int() # don't use too hard negatives
+        sum_exp = (exp * pad_mask.unsqueeze(-1)).sum(dim=-1).sum(dim=-1) # don't use pad tokens as negatives
     
+        losses = (1 + sum_exp).log() * non_padding.int()
+        repeat_loss = losses.sum() / non_padding.int().sum()
+
+    # prediction loss: using topk as negatives
+    pred_loss = 0.0
+    if topk_negatives:
+        topk_preds = topk_preds.masked_fill(topk_preds == labels.unsqueeze(-1), pad_id) # exclude same label tokens as negatives
+        pad_mask = (topk_preds != pad_id).int()
+        neg_scores = topk_scores[..., :topk_negatives]
+        positive_scores = logits.gather(2, labels.unsqueeze(-1))
+        neg_minus_pos = neg_scores - positive_scores
+        exp = neg_minus_pos.exp()
+        pad_mask *= (exp <= neg_hardness).int() # using too hard negatives can be harmful
+        sum_exp = (exp * pad_mask).sum(dim=-1) # don't use pad tokens as negatives
+
+        losses = (1 + sum_exp).log() * non_padding.int()
+        pred_loss = losses.sum() / non_padding.int().sum()
+
+    return repeat_loss + pred_loss
+
+
 def negative_loss(
     logits, target_inds, orig_pad_id=0, method='cl2',
-    pad_id=0, topk_hard_negatives=0, preced_k_negatives=-1,
+    pad_id=0, topk_negatives=0, preced_k_negatives=-1,
 ):
     non_padding = target_inds != orig_pad_id
     labels = target_inds * (target_inds >= 0).int()
 
     neg_exs = negative_sampling(
         logits=logits, labels=labels, pad_id=pad_id,
-        topk_hard_negatives=topk_hard_negatives,
+        topk_negatives=topk_negatives,
         preced_k_negatives=preced_k_negatives,
     )
 
