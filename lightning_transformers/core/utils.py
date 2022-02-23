@@ -453,15 +453,15 @@ def contrastive_loss(
         # label_scores = logits.gather(2, labels.unsqueeze(-1))
         # positive_scores = torch.cat([positive_scores, label_scores], dim=-1)
         # topk_preds = torch.cat([topk_preds, labels.unsqueeze(-1)], dim=-1)
-        false_positive_mask = (preced_tokens.unsqueeze(-1) == topk_preds.unsqueeze(-2)).int()
-        false_positive_mask = false_positive_mask.sum(-2).clamp(max=1)
-        false_positive_mask *= (topk_preds != pad_id).int()
-        false_positive_mask = false_positive_mask.unsqueeze(-2)
+        # false_positive_mask = (preced_tokens.unsqueeze(-1) == topk_preds.unsqueeze(-2)).int()
+        # false_positive_mask = false_positive_mask.sum(-2).clamp(max=1)
+        # false_positive_mask *= (topk_preds != pad_id).int()
+        # false_positive_mask = false_positive_mask.unsqueeze(-2)
         pad_mask = (preced_tokens != pad_id).int()
         neg_scores = logits.gather(2, preced_tokens)
         neg_minus_pos = neg_scores.unsqueeze(-1) - positive_scores.unsqueeze(-2)
         exp = neg_minus_pos.exp()
-        exp = exp * false_positive_mask
+        # exp = exp * false_positive_mask
         # pad_mask *= (exp <= pos_hardness).int() # don't use too hard negatives
         sum_exp = (exp * pad_mask.unsqueeze(-1)).sum(dim=-1).sum(dim=-1) # don't use pad tokens as negatives
     
