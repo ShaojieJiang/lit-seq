@@ -480,7 +480,7 @@ def contrastive_loss(
         exp = neg_minus_pos.exp()
         # pad_mask *= (exp <= neg_hardness).int() # using too hard negatives can be harmful
         sum_exp = (exp * pad_mask).sum(dim=-1) # don't use pad tokens as negatives
-        sum_exp = sum_exp.clamp(max=np.exp(0.3) - 1)
+        # sum_exp = sum_exp.clamp(max=np.exp(0.3) - 1)
 
         losses = (1 + sum_exp).log() * non_padding.int()
         pred_loss = losses.sum() / non_padding.int().sum()

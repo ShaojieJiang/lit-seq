@@ -85,12 +85,12 @@ class LanguageModelingTransformer(HFTransformer):
 
         final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, shift_logits, outputs.hidden_states[-1][:, :-1, :], shift_labels)
 
-        non_padding = labels != self.criterion.ignore_index
+        non_padding = shift_labels != self.criterion.ignore_index
         
         if self.training:
             return final_loss
         else:
-            return calc_rep_tf_and_acc(logits, non_padding, labels)
+            return calc_rep_tf_and_acc(shift_logits, non_padding, shift_labels)
 
     def generate(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> List[str]:
         # max_length = self.cfg.val_target_max_length if self.cfg.val_target_max_length else self.model.config.max_length
