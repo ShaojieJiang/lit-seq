@@ -11,11 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List
-import torch
-from torch.nn import CrossEntropyLoss
+from typing import List, Optional
 
+import torch
+from hydra.utils import get_class
+from transformers import AutoConfig, PreTrainedTokenizerBase
+
+from lightning_transformers.core.config import LitTaskConfig, OptimizerConfig, SchedulerConfig
+from lightning_transformers.core.instantiator import Instantiator
 from lightning_transformers.core.nlp import HFTransformer
+from lightning_transformers.core.nlp.config import HFBackboneConfig
 from lightning_transformers.core.utils import calc_rep_tf_and_acc
 
 
@@ -28,9 +33,32 @@ class LanguageModelingTransformer(HFTransformer):
         **kwargs: :class:`lightning_transformers.core.nlp.HFTransformer` arguments.
     """
 
-    def __init__(self, *args, downstream_model_type: str = "transformers.AutoModelForCausalLM", **kwargs) -> None:
-        super().__init__(downstream_model_type, *args, **kwargs)
-        self.criterion = CrossEntropyLoss(reduction='none')
+    def __init__(
+        self,
+        downstream_model_type: str,
+        backbone: HFBackboneConfig,
+        optimizer: OptimizerConfig = OptimizerConfig(),
+        scheduler: SchedulerConfig = SchedulerConfig(),
+        instantiator: Optional[Instantiator] = None,
+        tokenizer: Optional[PreTrainedTokenizerBase] = None,
+        pipeline_kwargs: Optional[dict] = None,
+        cfg: Optional[LitTaskConfig] = None,
+        **model_data_kwargs,
+    ) -> None:
+        self.save_hyperparameters()
+        model_cls = get_class(downstream_model_type)
+            
+        if cfg.scratch:
+            config = AutoConfig.from_pretrained(backbone.pretrained_model_name_or_path)
+            model = model_cls.from_config(config)
+        else:
+            model = model_cls.from_pretrained(backbone.pretrained_model_name_or_path)
+
+        super(HFTransformer, self).__init__(model=model, optimizer=optimizer, scheduler=scheduler, instantiator=instantiator, cfg=cfg)
+        self._tokenizer = tokenizer  # necessary for hf_pipeline
+        self._hf_pipeline = None
+        self._hf_pipeline_kwargs = pipeline_kwargs or {}
+        self.criterion = torch.nn.CrossEntropyLoss(reduction='none')
     
     def setup(self, stage: str):
         self.tokenizer.add_special_tokens({'pad_token': '<|endoftext|>'})

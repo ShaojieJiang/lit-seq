@@ -18,6 +18,7 @@ import warnings
 from collections import Counter
 from typing import Mapping, Optional, Sequence, Type, Union
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from datasets.arrow_dataset import Dataset
@@ -477,8 +478,9 @@ def contrastive_loss(
         positive_scores = logits.gather(2, labels.unsqueeze(-1))
         neg_minus_pos = neg_scores - positive_scores
         exp = neg_minus_pos.exp()
-        pad_mask *= (exp <= neg_hardness).int() # using too hard negatives can be harmful
+        # pad_mask *= (exp <= neg_hardness).int() # using too hard negatives can be harmful
         sum_exp = (exp * pad_mask).sum(dim=-1) # don't use pad tokens as negatives
+        sum_exp = sum_exp.clamp(max=np.exp(0.3) - 1)
 
         losses = (1 + sum_exp).log() * non_padding.int()
         pred_loss = losses.sum() / non_padding.int().sum()
