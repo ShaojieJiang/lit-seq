@@ -464,9 +464,19 @@ def contrastive_loss(
         exp = neg_minus_pos.exp()
         # exp = exp * false_positive_mask
         # pad_mask *= (exp <= pos_hardness).int() # don't use too hard negatives
+
+        # ours
         sum_exp = (exp * pad_mask.unsqueeze(-1)).sum(dim=-1).sum(dim=-1) # don't use pad tokens as negatives
-    
         losses = (1 + sum_exp).log() * non_padding.int()
+
+        # # N-pair
+        # sum_exp = (exp * pad_mask.unsqueeze(-1)).sum(dim=-2) # don't use pad tokens as negatives
+        # losses = (1 + sum_exp).log().mean(dim=-1) * non_padding.int()
+
+        # # N-pair-ovo
+        # sum_exp = (exp * pad_mask.unsqueeze(-1)) # don't use pad tokens as negatives
+        # losses = (1 + sum_exp).log().sum(dim=-2).mean(dim=-1) * non_padding.int()
+
         repeat_loss = losses.sum() / non_padding.int().sum()
 
     # prediction loss: using topk as negatives
@@ -478,9 +488,9 @@ def contrastive_loss(
         positive_scores = logits.gather(2, labels.unsqueeze(-1))
         neg_minus_pos = neg_scores - positive_scores
         exp = neg_minus_pos.exp()
-        # pad_mask *= (exp <= neg_hardness).int() # using too hard negatives can be harmful
+        # pad_mask *= (exp <= 1).int() # using too hard negatives can be harmful
         sum_exp = (exp * pad_mask).sum(dim=-1) # don't use pad tokens as negatives
-        # sum_exp = sum_exp.clamp(max=np.exp(0.3) - 1)
+        sum_exp = sum_exp.clamp(max=np.exp(0.9) - 1)
 
         losses = (1 + sum_exp).log() * non_padding.int()
         pred_loss = losses.sum() / non_padding.int().sum()
@@ -492,19 +502,19 @@ def negative_loss(
     logits, target_inds, orig_pad_id=0, method='cl2',
     pad_id=0, topk_negatives=0, preced_k_negatives=-1,
 ):
+    # repetition loss: using topk as positives
     non_padding = target_inds != orig_pad_id
     labels = target_inds * (target_inds >= 0).int()
 
-    neg_exs = negative_sampling(
-        logits=logits, labels=labels, pad_id=pad_id,
-        topk_negatives=topk_negatives,
-        preced_k_negatives=preced_k_negatives,
-    )
-
-    negative_targets = torch.zeros_like(logits).scatter_(2, neg_exs, 1)
-    negative_targets.scatter_(2, torch.zeros_like(labels).unsqueeze(-1) + pad_id, 0) # don't treat the pad_id as negative example
-
     if method == 'ul':
+        neg_exs = negative_sampling(
+            logits=logits, labels=labels, pad_id=pad_id,
+            topk_negatives=topk_negatives,
+            preced_k_negatives=preced_k_negatives,
+        )
+
+        negative_targets = torch.zeros_like(logits).scatter_(2, neg_exs, 1)
+        negative_targets.scatter_(2, torch.zeros_like(labels).unsqueeze(-1) + pad_id, 0) # don't treat the pad_id as negative example
         # penalise previous tokens
         probs = logits.softmax(dim=-1)
         token_ul = -torch.log(torch.clamp(1 - probs, min=1e-20)) * negative_targets
@@ -513,33 +523,15 @@ def negative_loss(
 
         return ul_loss
     elif method == 'ul2':
+        preced_tokens = preced_negatives(labels, preced_k_negatives, pad_id)
+        pad_mask = (preced_tokens != pad_id).int()
         probs = logits.softmax(dim=-1)
-        sum_neg_probs = (probs * negative_targets).sum(dim=-1)
-        token_ul = -torch.log((1 - sum_neg_probs).clamp(min=1e-20)) * non_padding.int()
+        neg_probs = probs.gather(2, preced_tokens)
+        token_ul = -torch.log(torch.clamp(1 - neg_probs, min=1e-20)) * pad_mask
+        token_ul = token_ul.sum(dim=-1) * non_padding.int()
         ul_loss = token_ul.sum() / non_padding.int().sum()
 
         return ul_loss
-    else:
-        gt_scores = logits.gather(2, labels.unsqueeze(-1))
-
-        if method == 'cl1':
-            # contrastive with previous tokens
-            # this implementation doesn't consider repeated negatives
-            neg_minus_pos = logits - gt_scores
-            exp = neg_minus_pos.exp() * negative_targets
-            sum_exp = exp.sum(dim=-1)
-        elif method == 'cl2':
-            # this cl implementation consideres repeated netatives
-            pad_mask = (neg_exs != pad_id).int()
-            neg_scores = logits.gather(2, neg_exs)
-            neg_minus_pos = neg_scores - gt_scores
-            exp = neg_minus_pos.exp()
-            sum_exp = (exp * pad_mask).sum(dim=-1) # don't use pad tokens as negatives
-
-        losses = (1 + sum_exp).log() * non_padding.int()
-        cl_loss = losses.sum() / non_padding.int().sum()
-
-        return cl_loss
     
 def compute_seq_ul(batch, model, pad_id, min_length):
     generated = model.generate.__wrapped__(
