@@ -1,15 +1,15 @@
 defaults: # loads default configs
-  - disparate
+  - dialogue
   - override dataset: nlp/conversation/multi
 
 dataset:
   cfg:
     batch_size: 10
-    dataset_components: my_daily_dialog:my_personachat:my_empathetic_dialogues:my_wizard_of_wikipedia:my_blended_skill_talk
+    dataset_components: my_personachat:my_empathetic_dialogues:my_wizard_of_wikipedia:my_blended_skill_talk
 
 task:
   cfg:
-    task_name: conversation_contrastive
+    task_name: conversation_ct
 
 training:
   lr: 1e-5
@@ -18,10 +18,10 @@ training:
 trainer:
   max_steps: 50000
   val_check_interval: 1000
-  limit_val_batches: 200
+  limit_val_batches: 50
   # limit_test_batches: 2
   logger:
-    project: contrastive
+    project: ct
   callbacks:
     checkpoint_callback:
       save_last: True

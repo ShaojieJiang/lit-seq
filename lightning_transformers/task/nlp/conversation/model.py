@@ -113,10 +113,10 @@ class ConversationTransformer(HFTransformer):
             return calc_rep_tf_and_acc(logits, non_padding, labels)
 
     def generate(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> List[str]:
-        # max_length = self.cfg.val_target_max_length if self.cfg.val_target_max_length else self.model.config.max_length
+        max_length = self.cfg.max_length if self.cfg.max_length else self.model.config.max_length
         num_beams = self.cfg.num_beams if self.cfg.num_beams else self.model.config.num_beams
         generated_tokens = self.model.generate(
-            input_ids=input_ids, attention_mask=attention_mask, num_beams=num_beams, # max_length=max_length,
+            input_ids=input_ids, attention_mask=attention_mask, num_beams=num_beams, max_length=max_length,
             no_repeat_ngram_size=self.cfg.no_repeat_ngram_size,
             encoder_no_repeat_ngram_size=self.cfg.encoder_no_repeat_ngram_size,
             min_length=self.cfg.min_length,

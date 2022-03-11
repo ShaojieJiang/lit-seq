@@ -1,5 +1,5 @@
 defaults: # loads default configs
-  - disparate_multi
+  - dialogue_multi
   - override dataset: nlp/conversation/multi
 
 trainer:

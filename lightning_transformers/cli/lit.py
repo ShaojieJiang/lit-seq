@@ -78,7 +78,7 @@ def run(
 
     # manual load
     if cfg.finetune_ckpt:
-        model = model.load_from_checkpoint(cfg.finetune_ckpt, optimizer=cfg.task.optimizer, cfg=task.cfg)
+        model = model.load_from_checkpoint(cfg.finetune_ckpt, scheduler=cfg.task.scheduler, optimizer=cfg.task.optimizer, cfg=task.cfg)
     trainer.fit(model, datamodule=data_module)
     if run_test_after_fit or cfg.stage =='test':
         try:

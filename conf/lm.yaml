@@ -1,7 +1,7 @@
 defaults: # loads default configs
   - task: nlp/language_modeling
   - optimizer: adam
-  - scheduler: constant_schedule
+  - scheduler: constant_schedule_with_warmup
   - training: default
   - trainer: default
   - trainer/logger: wandb
@@ -23,7 +23,7 @@ task:
   cfg:
     compute_generate_metrics: True
     pooling_method: cls
-    task_name: language_modeling
+    task_name: lm_ct
     scheduler_monitor: val_loss
     scheduler_mode: min
     no_repeat_ngram_size: 0 # 3 by default
@@ -36,11 +36,11 @@ task:
     identical_mask: False # mask for identical tokens
     disparate_alpha: 10 # coefficient for similarity loss
     strengthen_position: False # whether to strengthen positifon embedding at each decoder layer
-    generate_after_progress: 0.97 # don't generate before this threshold, to save time
+    generate_after_progress: 0 # don't generate before this threshold, to save time
     sim_threshold: 0.1
     unlikelihood: False
     topk_negatives: 0 # topk prediction as negative examples; 0: skipping
-    preced_k_negatives: 20 # 0: use none; -1: use all; k: use preceding k tokens as negatives
+    preced_k_negatives: 0 # 0: use none; -1: use all; k: use preceding k tokens as negatives
     negative_method: cl2 # cl1, ul
     scratch: False
     save_generation_path: null # ${trainer.default_root_dir}/generated.txt
@@ -51,21 +51,21 @@ task:
 
 trainer:
   gpus: 1
-  val_check_interval: 500
+  val_check_interval: 1000
   max_steps: 50000
   max_epochs: 100
   gradient_clip_val: 0.1
   resume_from_checkpoint: ${trainer.default_root_dir}/last.ckpt
   default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}/${experiment_name}
   logger:
-    project: contrastive
+    project: ct
   callbacks:
     checkpoint_callback:
-      save_last: False
-      save_top_k: 0
+      save_last: True
+      save_top_k: 1
 
 training:
-  lr: 1e-4
+  lr: 1e-5
   batch_size: 4
 
 optimizer:

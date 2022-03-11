@@ -1,7 +1,7 @@
 defaults: # loads default configs
   - blenderbot
   - override optimizer: adam
-  - override scheduler: cosine_schedule_with_warmup
+  - override scheduler: constant_schedule_with_warmup
 
 task:
   cfg:
@@ -14,7 +14,7 @@ task:
     identical_mask: False # mask for identical tokens
     disparate_alpha: 10 # coefficient for similarity loss
     strengthen_position: False # whether to strengthen positifon embedding at each decoder layer
-    generate_after_progress: 0.97 # don't generate before this threshold, to save time
+    generate_after_progress: 0 # don't generate before this threshold, to save time
     sim_threshold: 0.1
     unlikelihood: False
     topk_negatives: 0 # topk prediction as negative examples; 0: skipping
@@ -31,5 +31,5 @@ trainer:
   limit_val_batches: 50
   callbacks:
     checkpoint_callback:
-      save_last: False
-      save_top_k: 0
+      save_last: True
+      save_top_k: 1
