@@ -95,8 +95,10 @@ class LanguageModelingTransformer(HFTransformer):
     def generate(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> List[str]:
         # max_length = self.cfg.val_target_max_length if self.cfg.val_target_max_length else self.model.config.max_length
         num_beams = self.cfg.num_beams if self.cfg.num_beams else self.model.config.num_beams
+        input_ids=input_ids[:, :50]
+        attention_mask=attention_mask[:, :50]
         generated_tokens = self.model.generate(
-            input_ids=input_ids[:, :50], attention_mask=attention_mask[:, :50], num_beams=num_beams, # max_length=max_length,
+            input_ids=input_ids, attention_mask=attention_mask, num_beams=num_beams, # max_length=max_length,
             no_repeat_ngram_size=self.cfg.no_repeat_ngram_size,
             pad_token_id=self.tokenizer.pad_token_id,
             max_length=input_ids.size(1) + self.cfg.generation_length,
