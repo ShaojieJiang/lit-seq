@@ -367,9 +367,10 @@ def calc_vector_similarity(
 
     cut_cos_sim = None
     if disparate:
-        sim_mask *= (pair_sim >= sim_threshold).int()
+        sim_diff = 0.5 - pair_sim.diagonal(dim1=1, dim2=2).unsqueeze(-1) + pair_sim
+        sim_diff = sim_diff.clamp(min=0)
         # report the avg similarity of all
-        cut_cos_sim = (pair_sim * sim_mask).sum() / (sim_mask.sum() + 1e-8) # get average cosine similarity
+        cut_cos_sim = (sim_diff * sim_mask).sum() / (sim_mask.sum() + 1e-8) # get average cosine similarity
 
     return cos_sim, cut_cos_sim
 
