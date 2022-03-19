@@ -165,6 +165,10 @@ class HFTransformer(TaskTransformer):
                     preced_k_negatives=self.cfg.preced_k_negatives,
                 )
             elif self.cfg.negative_method.startswith('cl'):
+                outputs_ct = self.model(output_hidden_states=True, input_ids=batch['input_ids'][:, :200], attention_mask=batch['attention_mask'][:, :200])
+
+                logits = outputs_ct.logits
+                labels = batch['input_ids'][..., 1:201].contiguous()
                 neg_loss = contrastive_loss(
                     logits,
                     labels,

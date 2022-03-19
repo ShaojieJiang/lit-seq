@@ -102,6 +102,7 @@ class LanguageModelingTransformer(HFTransformer):
             no_repeat_ngram_size=self.cfg.no_repeat_ngram_size,
             pad_token_id=self.tokenizer.pad_token_id,
             max_length=input_ids.size(1) + self.cfg.generation_length,
+            # do_sample=True, top_k=50, # top_p=0.9
         )
         pred_str = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
         pred_str = [str.strip(s) for s in pred_str]

@@ -450,8 +450,8 @@ def contrastive_loss(
     preced_tokens = preced_negatives(labels, preced_k_negatives, pad_id)
     repeat_loss = 0.0
     if preced_k_negatives:
-        positive_scores = topk_scores[..., :topk_positives] # using too many positives can be too harsh
-        # label_scores = logits.gather(2, labels.unsqueeze(-1))
+        # positive_scores = topk_scores[..., 2:] # using too many positives can be too harsh
+        positive_scores = logits.gather(2, labels.unsqueeze(-1))
         # positive_scores = torch.cat([positive_scores, label_scores], dim=-1)
         # topk_preds = torch.cat([topk_preds, labels.unsqueeze(-1)], dim=-1)
         # false_positive_mask = (preced_tokens.unsqueeze(-1) == topk_preds.unsqueeze(-2)).int()
