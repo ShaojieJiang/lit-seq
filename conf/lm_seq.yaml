@@ -1,0 +1,5 @@
+defaults: # loads default configs
+  - lm
+
+training:
+  batch_size: 4

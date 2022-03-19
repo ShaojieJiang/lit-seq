@@ -534,25 +534,26 @@ def negative_loss(
 
         return ul_loss
     
-def compute_seq_ul(batch, model, pad_id, min_length):
+def compute_seq_ul(batch, model, pad_id, prefix_len, generation_len):
     generated = model.generate.__wrapped__(
         model,
-        input_ids=batch['input_ids'],
-        attention_mask=batch['attention_mask'],
+        input_ids=batch['input_ids'][:, :prefix_len],
+        attention_mask=batch['attention_mask'][:, :prefix_len],
         num_beams=1,
-        max_length=50,
+        max_length=50 + generation_len,
         no_repeat_ngram_size=0,
-        encoder_no_repeat_ngram_size=0,
-        min_length=min_length,
+        # encoder_no_repeat_ngram_size=0,
+        # min_length=min_length,
         return_dict_in_generate=True,
         output_scores=True,
+        pad_token_id=pad_id,
     )
     gen_logits = torch.cat([scores.unsqueeze(1) for scores in generated.scores], dim=1)
     gen_probs = gen_logits.softmax(dim=-1)
-    pred_probs = gen_probs.gather(2, generated.sequences[:, 1:].unsqueeze(-1))
+    pred_probs = gen_probs.gather(2, generated.sequences[:, prefix_len:].unsqueeze(-1))
     one_minus_probs = torch.clamp(1 - pred_probs, min=1e-20).squeeze(-1)
-    repeated = repeated_ngrams(generated.sequences[:, 1:], n=4)
-    repeated *= generated.sequences[:, 1:] != pad_id
+    repeated = repeated_ngrams(generated.sequences[:, prefix_len:], n=4)
+    repeated *= generated.sequences[:, prefix_len:] != pad_id
     seq_ul = -torch.log(one_minus_probs) * repeated
     seq_ul = seq_ul.sum()
     

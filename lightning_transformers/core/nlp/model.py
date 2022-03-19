@@ -186,13 +186,13 @@ class HFTransformer(TaskTransformer):
 
             aux_loss += neg_loss # the actual loss to backprop
         
-        if self.cfg.unlikelihood:
-            seq_ul = compute_seq_ul(batch, self.model, self.tokenizer.pad_token_id, self.cfg.min_length)
+        if self.cfg.unlikelihood and self.training:
+            seq_ul = compute_seq_ul(batch, self.model, self.tokenizer.pad_token_id, self.cfg.min_length, 90)
             self.log(
                 f"{prefix}_seq_ul", seq_ul,
                 add_dataloader_idx=False,
             )
-            aux_loss += self.cfg.ul_alpha * seq_ul
+            aux_loss += seq_ul
         
         return aux_loss
 
