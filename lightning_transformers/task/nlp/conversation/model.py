@@ -34,9 +34,7 @@ from lightning_transformers.core.nlp.config import HFBackboneConfig
 from lightning_transformers.core.nlp.model import HFTransformer
 from lightning_transformers.core.utils import (
     calc_rep_tf_and_acc,
-    calc_vector_similarity,
-    compute_seq_ul,
-    negative_loss,
+    repeated_ngrams,
 )
 
 
@@ -125,6 +123,7 @@ class ConversationTransformer(HFTransformer):
             no_repeat_ngram_size=self.cfg.no_repeat_ngram_size,
             encoder_no_repeat_ngram_size=self.cfg.encoder_no_repeat_ngram_size,
             min_length=self.cfg.min_length,
+            # do_sample=True, top_p=0.9, # top_k=50,
         )
         pred_str = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
         pred_str = [str.strip(s) for s in pred_str]
@@ -155,6 +154,32 @@ class ConversationTransformer(HFTransformer):
     @property
     def hf_pipeline_task(self) -> str:
         return "conversational"
+    
+    def compute_seq_ul(self, batch):
+        pad_id = self.tokenizer.pad_token_id
+        min_length = self.cfg.min_length
+        generated = self.model.generate.__wrapped__(
+            self.model,
+            input_ids=batch['input_ids'],
+            attention_mask=batch['attention_mask'],
+            num_beams=1,
+            max_length=50,
+            no_repeat_ngram_size=0,
+            encoder_no_repeat_ngram_size=0,
+            min_length=min_length,
+            return_dict_in_generate=True,
+            output_scores=True,
+        )
+        gen_logits = torch.cat([scores.unsqueeze(1) for scores in generated.scores], dim=1)
+        gen_probs = gen_logits.softmax(dim=-1)
+        pred_probs = gen_probs.gather(2, generated.sequences[:, 1:].unsqueeze(-1))
+        one_minus_probs = torch.clamp(1 - pred_probs, min=1e-20).squeeze(-1)
+        repeated = repeated_ngrams(generated.sequences[:, 1:], n=4)
+        repeated *= generated.sequences[:, 1:] != pad_id
+        seq_ul = -torch.log(one_minus_probs) * repeated
+        seq_ul = seq_ul.sum()
+        
+        return seq_ul
 
 
 class BlenderbotForConditionalGenerationClr(BlenderbotForConditionalGeneration):

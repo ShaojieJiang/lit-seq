@@ -5,7 +5,7 @@ defaults: # loads default configs
 dataset:
   cfg:
     batch_size: 6
-    dataset_components: my_personachat:my_empathetic_dialogues:my_wizard_of_wikipedia:my_blended_skill_talk
+    dataset_components: my_personachat:my_empathetic_dialogues:my_wizard_of_wikipedia:my_blended_skill_talk:my_daily_dialog
 
 task:
   cfg:
