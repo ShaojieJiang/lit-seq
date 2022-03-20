@@ -21,7 +21,7 @@ from lightning_transformers.core.config import LitTaskConfig, OptimizerConfig, S
 from lightning_transformers.core.instantiator import Instantiator
 from lightning_transformers.core.nlp import HFTransformer
 from lightning_transformers.core.nlp.config import HFBackboneConfig
-from lightning_transformers.core.utils import calc_rep_tf_and_acc
+from lightning_transformers.core.utils import calc_rep_tf_and_acc, repeated_ngrams
 
 
 class LanguageModelingTransformer(HFTransformer):
@@ -118,3 +118,31 @@ class LanguageModelingTransformer(HFTransformer):
     @property
     def hf_pipeline_task(self) -> str:
         return "text-generation"
+    
+    def compute_seq_ul(self, batch):
+        pad_id = self.tokenizer.pad_token_id
+        prefix_len = self.cfg.min_length
+        generation_len = 90
+        generated = self.model.generate.__wrapped__(
+            self.model,
+            input_ids=batch['input_ids'][:, :prefix_len],
+            attention_mask=batch['attention_mask'][:, :prefix_len],
+            num_beams=1,
+            max_length=50 + generation_len,
+            no_repeat_ngram_size=0,
+            # encoder_no_repeat_ngram_size=0,
+            # min_length=min_length,
+            return_dict_in_generate=True,
+            output_scores=True,
+            pad_token_id=pad_id,
+        )
+        gen_logits = torch.cat([scores.unsqueeze(1) for scores in generated.scores], dim=1)
+        gen_probs = gen_logits.softmax(dim=-1)
+        pred_probs = gen_probs.gather(2, generated.sequences[:, prefix_len:].unsqueeze(-1))
+        one_minus_probs = torch.clamp(1 - pred_probs, min=1e-20).squeeze(-1)
+        repeated = repeated_ngrams(generated.sequences[:, prefix_len:], n=4)
+        repeated *= generated.sequences[:, prefix_len:] != pad_id
+        seq_ul = -torch.log(one_minus_probs) * repeated
+        seq_ul = seq_ul.sum()
+        
+        return seq_ul

@@ -13,7 +13,7 @@ from lightning_transformers.core.config import LitTaskConfig, OptimizerConfig, S
 from lightning_transformers.core.instantiator import Instantiator
 from lightning_transformers.core.model import TaskTransformer
 from lightning_transformers.core.nlp.config import HFBackboneConfig
-from lightning_transformers.core.utils import calc_vector_similarity, compute_seq_ul, contrastive_loss, get_unique_total_ngrams, negative_loss
+from lightning_transformers.core.utils import calc_vector_similarity, contrastive_loss, get_unique_total_ngrams, negative_loss
 
 if TYPE_CHECKING:
     from transformers import AutoModel, Pipeline
@@ -183,7 +183,7 @@ class HFTransformer(TaskTransformer):
             aux_loss += neg_loss # the actual loss to backprop
         
         if self.cfg.unlikelihood and self.training:
-            seq_ul = compute_seq_ul(batch, self.model, self.tokenizer.pad_token_id, self.cfg.min_length, 90)
+            seq_ul = self.compute_seq_ul(batch)
             self.log(
                 f"{prefix}_seq_ul", seq_ul,
                 add_dataloader_idx=False,
