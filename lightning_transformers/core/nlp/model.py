@@ -165,10 +165,6 @@ class HFTransformer(TaskTransformer):
                     preced_k_negatives=self.cfg.preced_k_negatives,
                 )
             elif self.cfg.negative_method.startswith('cl'):
-                outputs_ct = self.model(output_hidden_states=True, input_ids=batch['input_ids'][:, :200], attention_mask=batch['attention_mask'][:, :200])
-
-                logits = outputs_ct.logits
-                labels = batch['input_ids'][..., 1:201].contiguous()
                 neg_loss = contrastive_loss(
                     logits,
                     labels,
@@ -247,6 +243,7 @@ class HFTransformer(TaskTransformer):
 
     def compute_generate_metrics(self, batch, prefix):
         _, generated_tokens = self.generate(batch["input_ids"], batch["attention_mask"])
+        # generated_tokens = batch['labels']
         input_ids = batch["input_ids"]
         if self.trainer.gpus > 1:
             generated_tokens = self.pad_and_gather(generated_tokens)

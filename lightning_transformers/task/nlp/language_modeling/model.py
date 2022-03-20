@@ -83,7 +83,13 @@ class LanguageModelingTransformer(HFTransformer):
             add_dataloader_idx=False,
         )
 
-        final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, shift_logits, outputs.hidden_states[-1][:, :-1, :], shift_labels)
+        if self.cfg.negative_method.startswith('cl') and self.training:
+            outputs_ct = self.model(output_hidden_states=True, input_ids=batch['input_ids'][:, :200], attention_mask=batch['attention_mask'][:, :200])
+            logits_ct = outputs_ct.logits
+            labels_ct = batch['input_ids'][..., 1:201].contiguous()
+            final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, logits_ct, outputs.hidden_states[-1][:, :-1, :], labels_ct)
+        else:
+            final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, shift_logits, outputs.hidden_states[-1][:, :-1, :], shift_labels)
 
         non_padding = shift_labels != self.criterion.ignore_index
         

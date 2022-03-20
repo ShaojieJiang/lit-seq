@@ -91,6 +91,7 @@ class ConversationTransformer(HFTransformer):
         labels = batch.pop('labels')
         decoder_input_ids = shift_tokens_right(labels, self.tokenizer.pad_token_id, self.tokenizer.bos_token_id)
         outputs = self.model(decoder_input_ids=decoder_input_ids, output_hidden_states=True, **batch)
+        # batch['labels'] = decoder_input_ids
         # loss = outputs[0]
         logits = outputs.logits
 
@@ -105,7 +106,11 @@ class ConversationTransformer(HFTransformer):
             add_dataloader_idx=False,
         )
 
-        final_loss = ce_loss + self.calc_aux_loss(prefix, batch, logits, outputs.decoder_hidden_states[-1], labels)
+        if self.cfg.negative_method.startswith('cl'):
+            outputs_ct = self.model(decoder_input_ids=decoder_input_ids, output_hidden_states=True, **batch)
+            final_loss = ce_loss + self.calc_aux_loss(prefix, batch, outputs_ct.logits, outputs.decoder_hidden_states[-1], labels)
+        else:
+            final_loss = ce_loss + self.calc_aux_loss(prefix, batch, logits, outputs.decoder_hidden_states[-1], labels)
         
         if self.training:
             return final_loss
