@@ -83,11 +83,11 @@ class LanguageModelingTransformer(HFTransformer):
             add_dataloader_idx=False,
         )
 
-        if self.cfg.negative_method.startswith('cl') and self.training:
+        if self.cfg.negative_method.startswith('cl') and self.cfg.preced_k_negatives:
             outputs_ct = self.model(output_hidden_states=True, input_ids=batch['input_ids'][:, :200], attention_mask=batch['attention_mask'][:, :200])
             logits_ct = outputs_ct.logits
             labels_ct = batch['input_ids'][..., 1:201].contiguous()
-            final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, logits_ct, outputs.hidden_states[-1][:, :-1, :], labels_ct)
+            final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, logits_ct, outputs.hidden_states[-1][:, :200, :], labels_ct)
         else:
             final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, shift_logits, outputs.hidden_states[-1][:, :-1, :], shift_labels)
 
@@ -146,3 +146,35 @@ class LanguageModelingTransformer(HFTransformer):
         seq_ul = seq_ul.sum()
         
         return seq_ul
+
+    def compute_ct_seq(self, batch):
+        pad_id = self.tokenizer.pad_token_id
+        generated = self.model.generate.__wrapped__(
+            self.model,
+            input_ids=batch['input_ids'][:, :50],
+            attention_mask=batch['attention_mask'][:, :50],
+            num_beams=1,
+            max_length=140,
+            no_repeat_ngram_size=0,
+            # encoder_no_repeat_ngram_size=0,
+            # min_length=140,
+            return_dict_in_generate=True,
+            output_scores=True,
+            pad_token_id=pad_id,
+        )
+        gen_logits = torch.cat([scores.unsqueeze(1) for scores in generated.scores], dim=1)
+        gen_seqs = generated.sequences[:, -90:]
+        repeated = repeated_ngrams(gen_seqs, n=4)
+        neg_scores = gen_logits.gather(2, gen_seqs.unsqueeze(-1))
+        pos_scores, _ = gen_logits.topk(k=2)
+        neg_minus_pos = neg_scores.unsqueeze(-1) - pos_scores[..., -1:].unsqueeze(-2)
+        exp = neg_minus_pos.exp()
+        # exp = exp * false_positive_mask
+        # pad_mask *= (exp <= pos_hardness).int() # don't use too hard negatives
+
+        # ours
+        sum_exp = exp.sum(dim=-1).sum(dim=-1) # don't use pad tokens as negatives
+        losses = (1 + sum_exp).log() * repeated.int()
+        repeat_loss = losses.sum() / (repeated.int().sum() + 1e-8)
+        
+        return repeat_loss

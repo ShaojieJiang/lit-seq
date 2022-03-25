@@ -190,6 +190,14 @@ class HFTransformer(TaskTransformer):
             )
             aux_loss += seq_ul
         
+        if self.cfg.ct_seq and self.training:
+            seq_ct = self.compute_ct_seq(batch)
+            self.log(
+                f"{prefix}_seq_ct", seq_ct,
+                add_dataloader_idx=False,
+            )
+            aux_loss += seq_ct
+        
         return aux_loss
 
     def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
