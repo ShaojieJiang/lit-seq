@@ -499,6 +499,29 @@ def contrastive_loss(
     return repeat_loss + pred_loss
 
 
+def nce_loss(
+    logits, target_inds, orig_pad_id=0, # method='cl2',
+    pad_id=0, preced_k_negatives=0,
+):
+    labels = target_inds * (target_inds >= 0).int() # mask -100 padding tokens
+    non_padding = target_inds != orig_pad_id
+
+    # repetition loss: using topk as positives
+    preced_tokens = preced_negatives(labels, preced_k_negatives, pad_id)
+    repeat_loss = 0.0
+    if preced_k_negatives:
+        pos_scores = logits.gather(2, labels.unsqueeze(-1))
+        neg_scores = -logits.gather(2, preced_tokens)
+        pos_loss = -F.logsigmoid(pos_scores).squeeze()
+        pad_mask = (preced_tokens != pad_id).int()
+        neg_loss = (-F.logsigmoid(neg_scores) * pad_mask).sum(-1) / (pad_mask.sum(-1) + 1e-8)
+        losses = pos_loss + neg_loss
+
+        repeat_loss = losses.sum() / non_padding.int().sum()
+    
+    return repeat_loss
+
+
 def negative_loss(
     logits, target_inds, orig_pad_id=0, method='cl2',
     pad_id=0, topk_negatives=0, preced_k_negatives=-1,

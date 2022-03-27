@@ -83,10 +83,9 @@ class LanguageModelingTransformer(HFTransformer):
             add_dataloader_idx=False,
         )
 
-        if self.cfg.negative_method.startswith('cl') and self.cfg.preced_k_negatives:
-            outputs_ct = self.model(output_hidden_states=True, input_ids=batch['input_ids'][:, :200], attention_mask=batch['attention_mask'][:, :200])
-            logits_ct = outputs_ct.logits
-            labels_ct = batch['input_ids'][..., 1:201].contiguous()
+        if not self.cfg.negative_method.startswith('ul') and self.cfg.preced_k_negatives:
+            logits_ct = shift_logits[..., :200, :]
+            labels_ct = shift_labels[..., :200]
             final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, logits_ct, outputs.hidden_states[-1][:, :200, :], labels_ct)
         else:
             final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, shift_logits, outputs.hidden_states[-1][:, :-1, :], shift_labels)

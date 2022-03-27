@@ -104,11 +104,7 @@ class ConversationTransformer(HFTransformer):
             add_dataloader_idx=False,
         )
 
-        if self.cfg.negative_method.startswith('cl'):
-            outputs_ct = self.model(decoder_input_ids=decoder_input_ids, output_hidden_states=True, **batch)
-            final_loss = ce_loss + self.calc_aux_loss(prefix, batch, outputs_ct.logits, outputs.decoder_hidden_states[-1], labels)
-        else:
-            final_loss = ce_loss + self.calc_aux_loss(prefix, batch, logits, outputs.decoder_hidden_states[-1], labels)
+        final_loss = ce_loss + self.calc_aux_loss(prefix, batch, logits, outputs.decoder_hidden_states[-1], labels)
         
         if self.training:
             return final_loss

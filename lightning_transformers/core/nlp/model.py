@@ -13,7 +13,7 @@ from lightning_transformers.core.config import LitTaskConfig, OptimizerConfig, S
 from lightning_transformers.core.instantiator import Instantiator
 from lightning_transformers.core.model import TaskTransformer
 from lightning_transformers.core.nlp.config import HFBackboneConfig
-from lightning_transformers.core.utils import calc_vector_similarity, contrastive_loss, get_unique_total_ngrams, negative_loss
+from lightning_transformers.core.utils import calc_vector_similarity, contrastive_loss, get_unique_total_ngrams, nce_loss, negative_loss
 
 if TYPE_CHECKING:
     from transformers import AutoModel, Pipeline
@@ -174,6 +174,14 @@ class HFTransformer(TaskTransformer):
                     preced_k_negatives=self.cfg.preced_k_negatives,
                     topk_positives=self.cfg.topk_positives,
                     neg_hardness=self.cfg.neg_hardness,
+                )
+            elif self.cfg.negative_method == 'nce':
+                neg_loss = nce_loss(
+                    logits,
+                    labels,
+                    orig_pad_id=self.criterion.ignore_index,
+                    pad_id=self.tokenizer.pad_token_id,
+                    preced_k_negatives=self.cfg.preced_k_negatives,
                 )
             self.log(
                 f"{prefix}_neg_loss", neg_loss,
