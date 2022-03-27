@@ -84,9 +84,10 @@ class LanguageModelingTransformer(HFTransformer):
         )
 
         if not self.cfg.negative_method.startswith('ul') and self.cfg.preced_k_negatives:
-            logits_ct = shift_logits[..., :200, :]
-            labels_ct = shift_labels[..., :200]
-            final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, logits_ct, outputs.hidden_states[-1][:, :200, :], labels_ct)
+            wsz = self.cfg.ct_window_size
+            logits_ct = shift_logits[..., :wsz, :]
+            labels_ct = shift_labels[..., :wsz]
+            final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, logits_ct, outputs.hidden_states[-1][:, :wsz, :], labels_ct)
         else:
             final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, shift_logits, outputs.hidden_states[-1][:, :-1, :], shift_labels)
 
