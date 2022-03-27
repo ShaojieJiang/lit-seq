@@ -118,6 +118,20 @@ class LanguageModelingTransformer(HFTransformer):
     def hf_pipeline_task(self) -> str:
         return "text-generation"
     
+    def interact(self):
+        self.eval()
+        while True:
+            prefix = input("Prefix: ")
+            output = self.hf_pipeline(
+                prefix,
+                max_length=150,
+                do_sample=False,
+                num_beams=self.cfg.num_beams,
+                pad_token_id=self.tokenizer.pad_token_id,
+            )
+            
+            print("Result: ", output[0]['generated_text'])
+    
     def compute_seq_ul(self, batch):
         pad_id = self.tokenizer.pad_token_id
         prefix_len = self.cfg.min_length
