@@ -103,8 +103,14 @@ class ConversationTransformer(HFTransformer):
             f"{prefix}_loss", ce_loss,
             add_dataloader_idx=False,
         )
-
-        final_loss = ce_loss + self.calc_aux_loss(prefix, batch, logits, outputs.decoder_hidden_states[-1], labels)
+        
+        if not self.cfg.negative_method.startswith('ul') and self.cfg.preced_k_negatives:
+            wsz = self.cfg.ct_window_size
+            logits_ct = logits[..., :wsz, :]
+            labels_ct = labels[..., :wsz]
+            final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, logits_ct, outputs.decoder_hidden_states[-1][:, :wsz, :], labels_ct)
+        else:
+            final_loss = ce_loss + self.calc_aux_loss(prefix, batch, logits, outputs.decoder_hidden_states[-1], labels)
         
         if self.training:
             return final_loss
