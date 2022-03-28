@@ -49,7 +49,7 @@ task:
     clr: False # contrastive learning representation from SimCLR
     topk_positives: 2 # 2 also works
     neg_hardness: 5
-    ct_window_size: 200
+    ct_window_size: 150
     # compute_generate_metrics: False
 
 trainer:
