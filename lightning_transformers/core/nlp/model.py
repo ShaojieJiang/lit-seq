@@ -251,27 +251,22 @@ class HFTransformer(TaskTransformer):
         max_length = self.cfg.val_target_max_length
         pad_length = max_length - tensor.size(-1)
         # pad tensors to the same size, otherwise all_gather will be stuck
-        tensor = F.pad(tensor, (0, pad_length), 'constant', 0)
+        tensor = F.pad(tensor, (0, pad_length), 'constant', self.tokenizer.pad_token_id)
         tensor = self.all_gather(tensor)
         tensor = tensor.view(-1, max_length)
 
         return tensor
 
     def compute_generate_metrics(self, batch, prefix):
-        _, generated_tokens = self.generate(batch["input_ids"], batch["attention_mask"])
+        input_ids, generated_tokens = self.generate(batch["input_ids"], batch["attention_mask"])
         # generated_tokens = batch['labels']
-        input_ids = batch["input_ids"]
+        # input_ids = batch["input_ids"]
         if self.trainer.gpus > 1:
             generated_tokens = self.pad_and_gather(generated_tokens)
             input_ids = self.pad_and_gather(input_ids)
             
         if self.cfg.save_generation_path is not None and self.global_rank == 0:
-            f = open(self.cfg.save_generation_path, 'a')
-            contexts = self.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
-            responses = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
-            for ctx, res in zip(contexts, responses):
-                f.write(f"{ctx}\n{res}\n\n")
-            f.close()
+            self.write_generations_to_file(input_ids, generated_tokens)
 
         ngram_counts = get_unique_total_ngrams(
             generated_tokens,

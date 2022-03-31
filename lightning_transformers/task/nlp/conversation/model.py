@@ -34,6 +34,7 @@ from lightning_transformers.core.nlp.config import HFBackboneConfig
 from lightning_transformers.core.nlp.model import HFTransformer
 from lightning_transformers.core.utils import (
     calc_rep_tf_and_acc,
+    get_unique_total_ngrams,
     repeated_ngrams,
 )
 
@@ -127,9 +128,28 @@ class ConversationTransformer(HFTransformer):
             min_length=self.cfg.min_length,
             # do_sample=True, top_p=0.9, # top_k=50,
         )
-        pred_str = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
-        pred_str = [str.strip(s) for s in pred_str]
-        return pred_str, generated_tokens
+        return input_ids, generated_tokens
+    
+    def write_generations_to_file(self, input_ids, generated_tokens):
+        f = open(self.cfg.save_generation_path, 'a')
+        bos_id = self.tokenizer.bos_token_id
+        eos_id = self.tokenizer.eos_token_id
+        pad_id = self.tokenizer.pad_token_id
+        rep_rates = []
+        for i in range(len(generated_tokens)):
+            counts = get_unique_total_ngrams(generated_tokens[i:i+1, :], bos_id, eos_id, pad_id)
+            rep1 = round(1 - counts['uniq_unigrams'] / (counts['num_unigrams'] + 1e-8), 2)
+            rep2 = round(1 - counts['uniq_bigrams'] / (counts['num_bigrams'] + 1e-8), 2)
+            rep3 = round(1 - counts['uniq_trigrams'] / (counts['num_trigrams'] + 1e-8), 2)
+            rep4 = round(1 - counts['uniq_fourgrams'] / (counts['num_fourgrams'] + 1e-8), 2)
+            rep = f"Rep1: {rep1}, Rep2: {rep2}, Rep3: {rep3}, Rep4: {rep4}"
+            rep_rates.append(rep)
+            
+        contexts = self.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
+        responses = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
+        for ctx, res, rep in zip(contexts, responses, rep_rates):
+            f.write(f"{ctx}\n{res}\n{rep}\n\n")
+        f.close()
 
     def hf_predict(self, *args, **kwargs) -> Any:
         conversation = Conversation(args[0])

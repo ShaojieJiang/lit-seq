@@ -28,8 +28,8 @@ task:
     scheduler_mode: min
     no_repeat_ngram_size: 0 # 3 by default
     encoder_no_repeat_ngram_size: 0 # 3 by default
-    generation_length: 100
-    min_length: 50
+    val_target_max_length: 150
+    prefix_length: 50
     num_beams: 1 # 10 by default
     lm_stride: ${dataset.cfg.stride}
     disparate: False # toggle for using the disparate regulariser

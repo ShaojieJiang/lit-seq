@@ -21,7 +21,7 @@ from lightning_transformers.core.config import LitTaskConfig, OptimizerConfig, S
 from lightning_transformers.core.instantiator import Instantiator
 from lightning_transformers.core.nlp import HFTransformer
 from lightning_transformers.core.nlp.config import HFBackboneConfig
-from lightning_transformers.core.utils import calc_rep_tf_and_acc, repeated_ngrams
+from lightning_transformers.core.utils import calc_rep_tf_and_acc, get_unique_total_ngrams, repeated_ngrams
 
 
 class LanguageModelingTransformer(HFTransformer):
@@ -101,19 +101,38 @@ class LanguageModelingTransformer(HFTransformer):
     def generate(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> List[str]:
         # max_length = self.cfg.val_target_max_length if self.cfg.val_target_max_length else self.model.config.max_length
         num_beams = self.cfg.num_beams if self.cfg.num_beams else self.model.config.num_beams
-        input_ids=input_ids[:, :50]
-        attention_mask=attention_mask[:, :50]
+        prefix_len = self.cfg.prefix_length
+        input_ids=input_ids[:, :prefix_len]
+        attention_mask=attention_mask[:, :prefix_len]
         generated_tokens = self.model.generate(
             input_ids=input_ids, attention_mask=attention_mask, num_beams=num_beams, # max_length=max_length,
             no_repeat_ngram_size=self.cfg.no_repeat_ngram_size,
             pad_token_id=self.tokenizer.pad_token_id,
-            max_length=input_ids.size(1) + self.cfg.generation_length,
+            max_length=self.cfg.val_target_max_length,
             # do_sample=True, top_k=50, # top_p=0.9
         )
-        pred_str = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
-        pred_str = [str.strip(s) for s in pred_str]
-        prefix_len = input_ids.size(1)
-        return pred_str, generated_tokens[:, prefix_len:]
+        return generated_tokens[:, :prefix_len], generated_tokens[:, prefix_len:]
+    
+    def write_generations_to_file(self, input_ids, generated_tokens):
+        f = open(self.cfg.save_generation_path, 'a')
+        bos_id = self.tokenizer.pad_token_id
+        eos_id = self.tokenizer.pad_token_id
+        pad_id = self.tokenizer.pad_token_id
+        rep_rates = []
+        for i in range(len(generated_tokens)):
+            counts = get_unique_total_ngrams(generated_tokens[i:i+1, :], bos_id, eos_id, pad_id)
+            rep1 = round(1 - counts['uniq_unigrams'] / (counts['num_unigrams'] + 1e-8), 2)
+            rep2 = round(1 - counts['uniq_bigrams'] / (counts['num_bigrams'] + 1e-8), 2)
+            rep3 = round(1 - counts['uniq_trigrams'] / (counts['num_trigrams'] + 1e-8), 2)
+            rep4 = round(1 - counts['uniq_fourgrams'] / (counts['num_fourgrams'] + 1e-8), 2)
+            rep = f"Rep1: {rep1}, Rep2: {rep2}, Rep3: {rep3}, Rep4: {rep4}"
+            rep_rates.append(rep)
+
+        prefixes = self.tokenizer.batch_decode(input_ids, skip_special_tokens=False)
+        continues = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=False)
+        for pref, cont, rep in zip(prefixes, continues, rep_rates):
+            f.write(f"Prefix: {pref}\nContinuation: {cont}\n{rep}\n\n")
+        f.close()
 
     @property
     def hf_pipeline_task(self) -> str:
@@ -135,7 +154,7 @@ class LanguageModelingTransformer(HFTransformer):
     
     def compute_seq_ul(self, batch):
         pad_id = self.tokenizer.pad_token_id
-        prefix_len = self.cfg.min_length
+        prefix_len = self.cfg.prefix_length
         generation_len = 90
         generated = self.model.generate.__wrapped__(
             self.model,
@@ -163,10 +182,11 @@ class LanguageModelingTransformer(HFTransformer):
 
     def compute_ct_seq(self, batch):
         pad_id = self.tokenizer.pad_token_id
+        prefix_len = self.cfg.prefix_length
         generated = self.model.generate.__wrapped__(
             self.model,
-            input_ids=batch['input_ids'][:, :50],
-            attention_mask=batch['attention_mask'][:, :50],
+            input_ids=batch['input_ids'][:, :prefix_len],
+            attention_mask=batch['attention_mask'][:, :prefix_len],
             num_beams=1,
             max_length=140,
             no_repeat_ngram_size=0,
