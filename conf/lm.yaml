@@ -33,7 +33,6 @@ task:
     simctg: False
     padding_mask: True # mask for padding tokens
     identical_mask: False # mask for identical tokens
-    strengthen_position: False # whether to strengthen positifon embedding at each decoder layer
     generate_after_progress: 0 # don't generate before this threshold, to save time
     ul_seq: False
     ct_seq: False

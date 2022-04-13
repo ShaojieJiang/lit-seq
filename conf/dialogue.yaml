@@ -12,7 +12,6 @@ task:
     simctg: False
     padding_mask: True # mask for padding tokens
     identical_mask: False # mask for identical tokens
-    strengthen_position: False # whether to strengthen positifon embedding at each decoder layer
     generate_after_progress: 0 # don't generate before this threshold, to save time
     ul_seq: False
     ct_seq: False
@@ -21,7 +20,6 @@ task:
     negative_method: ct # ul, ul2, nce
     scratch: False
     save_generation_path: null # ${trainer.default_root_dir}/generated.txt
-    clr: False # normalize hidden and embedding representations, i.e., change dot product to cosine sim
     ct_seq_len: 30
 
 trainer:
