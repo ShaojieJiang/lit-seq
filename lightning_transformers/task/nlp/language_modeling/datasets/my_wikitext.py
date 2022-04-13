@@ -187,8 +187,3 @@ class Wikitext(datasets.GeneratorBasedBuilder):
         with open(data_file, encoding="utf-8") as f:
             rows = [row.strip() for row in f]
             yield 0, {'text': ' '.join(rows)}
-            # for idx, row in enumerate(f):
-            #     if row.strip():
-            #         yield idx, {"text": row}
-            #     else:
-            #         yield idx, {"text": ""}
