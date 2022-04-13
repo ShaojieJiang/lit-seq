@@ -26,9 +26,11 @@ Then `pip install .`
 The pretrained checkpoints used in the CT paper are already uploaded to Hugging Face Hub, so you can easily reproduce the results reported in our paper.
 
 For reproducing the test results, or interacting with the GPT2-small model finetuned on Wikitext-103:
+
 `python lit --config-name lm backbone.pretrained_model_name_or_path=NeuralNotwork/gpt2-ct stage=[test | interact]`
 
 For the BlenderBot dialogue model:
+
 `python lit --config-name dialogue_multi backbone.pretrained_model_name_or_path=NeuralNotwork/blenderbot-400M-ct stage=[test | interact]`
 
 If you don't need the log in W&B, add `log=False` to the above commands.
@@ -83,6 +85,7 @@ key options:
 ## Test or interact
 
 To test or interact with the models trained by yourself:
+
 `python lit --config-name [lm | dialogue_multi] trainer.default_root_dir='your_path_to_saved_checkpoints' stage=[test | interact]`
 
 <!-- ```
