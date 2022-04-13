@@ -165,7 +165,7 @@ class ConversationTransformer(HFTransformer):
             generated_text = self.tokenizer.decode(generated[0], skip_special_tokens=True)
             history.insert(0, generated_text)
             
-            print("Blenderbot: ", generated_text)
+            print("Bot: ", generated_text)
 
     @property
     def hf_pipeline_task(self) -> str:

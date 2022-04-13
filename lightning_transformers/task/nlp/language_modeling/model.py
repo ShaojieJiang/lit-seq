@@ -150,7 +150,7 @@ class LanguageModelingTransformer(HFTransformer):
                 pad_token_id=self.tokenizer.pad_token_id,
             )
             
-            print("Result: ", output[0]['generated_text'])
+            print("Continuation: ", output[0]['generated_text'])
     
     def compute_seq_ul(self, batch):
         pad_id = self.tokenizer.pad_token_id
