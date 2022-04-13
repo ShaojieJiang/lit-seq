@@ -370,41 +370,6 @@ def calc_vector_similarity(
 
     return cos_sim, simctg
 
-    
-def negative_sampling(
-    logits=None,
-    labels=None,
-    pad_id=0,
-    topk_negatives=0,
-    preced_m_negatives=0,
-):
-    neg_exs = None
-    topk_preds = None
-    if topk_negatives > 0:
-        _, topk_preds = logits.topk(k=topk_negatives)
-    
-    if topk_preds is not None:
-        neg_exs = topk_preds
-    
-    preced_tokens = None
-    if preced_m_negatives: # use previous k tokens as negatives
-        preced_tokens = labels.unsqueeze(1).expand(labels.size(0), labels.size(1), labels.size(1))
-        mask = torch.ones_like(preced_tokens).bool()
-        mask = torch.ones_like(preced_tokens).tril(-1).bool()
-        if preced_m_negatives > 0:
-            mask = mask.triu(-preced_m_negatives)
-        preced_tokens = preced_tokens.masked_fill(~mask, pad_id)
-
-    if preced_tokens is not None:
-        if neg_exs is None:
-            neg_exs = preced_tokens
-        else:
-            neg_exs = torch.cat([neg_exs, preced_tokens], dim=-1)
-
-    neg_exs = neg_exs.masked_fill(neg_exs == labels.unsqueeze(-1), pad_id) # exclude same label tokens as negatives
-
-    return neg_exs
-
 
 def preced_negatives(
     labels=None,
@@ -508,11 +473,7 @@ def negative_loss(
     labels = target_inds * (target_inds >= 0).int()
 
     if method == 'ul':
-        neg_exs = negative_sampling(
-            logits=logits, labels=labels, pad_id=pad_id,
-            topk_negatives=topk_negatives,
-            preced_m_negatives=preced_m_negatives,
-        )
+        neg_exs = preced_negatives(labels, preced_m_negatives=-1, pad_id=pad_id)
 
         negative_targets = torch.zeros_like(logits).scatter_(2, neg_exs, 1)
         negative_targets.scatter_(2, torch.zeros_like(labels).unsqueeze(-1) + pad_id, 0) # don't treat the pad_id as negative example
