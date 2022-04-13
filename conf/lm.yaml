@@ -16,7 +16,7 @@ dataset:
     eval_batch_size: 10
     block_size: 512
     stride: 256
-    dataset_config_name: wikitext-103-raw-v1
+    dataset_config_name: wikitext-2-raw-v1
 
 task:
   cfg:
@@ -27,7 +27,7 @@ task:
     no_repeat_ngram_size: 0 # 3 by default
     encoder_no_repeat_ngram_size: 0 # 3 by default
     val_target_max_length: 150
-    prefix_length: 60
+    prefix_length: 50
     num_beams: 1 # 10 by default
     lm_stride: ${dataset.cfg.stride}
     simctg: False
@@ -37,7 +37,7 @@ task:
     ul_seq: False
     ct_seq: False
     topk_negatives: 0 # topk prediction as negative examples; 0: skipping
-    preced_m_negatives: 50 # -1: use all; 0: use none; k: use preceding k tokens as negatives
+    preced_m_negatives: 60 # -1: use all; 0: use none; k: use preceding k tokens as negatives
     negative_method: ct # ul, ul2, nce
     scratch: False
     save_generation_path: null # ${trainer.default_root_dir}/generated.txt

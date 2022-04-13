@@ -2,12 +2,18 @@ This repo is for our paper _Training a Turn-level User Engagingness Predictor fo
 
 This repo is based on [Lightning Transformers](https://github.com/PyTorchLightning/lightning-transformers).
 
+## Related papers
+
+This repo contains the source code for the following paper:
+CT
+<!-- WESEE -->
+
 ## Changes to the original repo
 Coming soon.
 Tested on the following tasks:
 * Language modeling
 * Conversation
-* Text regression
+<!-- * Text regression -->
 
 
 ## Installation from source
@@ -15,18 +21,34 @@ Tested on the following tasks:
 Clone and change directory to this repo's root dir.
 Then `pip install .`
 
+## Run test or interact with our pretrained model
+
+The pretrained checkpoints used in the CT paper are already uploaded to Hugging Face Hub, so you can easily reproduce the results reported in our paper.
+
+For reproducing the test results, or interacting with the GPT2-small model finetuned on Wikitext-103:
+`python lit --config-name lm backbone.pretrained_model_name_or_path=NeuralNotwork/gpt2-ct stage=[test | interact]`
+
+For the BlenderBot dialogue model:
+`python lit --config-name dialogue_multi backbone.pretrained_model_name_or_path=NeuralNotwork/blenderbot-400M-ct stage=[test | interact]`
+
+If you don't need the log in W&B, add `log=False` to the above commands.
+
+In the `interact` mode, you can interact with the pretained models.
+With a language model, you can get continuations to your input prefix; with a dialogue model, you can get responses to your input message.
+
 ## Training
+
+You can also reproduce our training using the instructions below.
 All the data downloading and preprocessing are taken care of automatically.
 All default hyper-parameters for reproducing our results are already in their corresponding `conf/*.yaml`
 configuration files.
 Simply run the following commands.
-Checkpoints will be released soon.
 
 > **_NOTE:_**  For preprocessing big datasets such as `Wikitext-103` and `DSTC8-Reddit`, it may take longer, more CPU memory and CPU cores for the first time. But thanks to Hugging Face Datasets, once the datasets are preprocessed, the subsequent runs should take much less memory (25GB or less) and CPU cores (usually two are enough) to run, and should be loaded instantly.
 
 ### Language modeling task
 
-`python lit.py --config-name lm [OPTIONS]`
+`python lit.py --config-name lm dataset.cfg.dataset_config_name=wikitext-103-raw-v1 [OPTIONS]`
 
 key options:
 | optinal arguments | values | explanation |
@@ -54,18 +76,14 @@ key options:
 | training.lr | Float | Learning rate. Default to `1e-5` |
 | trainer.default_root_dir | Path to your checkpoint location | Default to `${HOME}/storage/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}` |
 
-### Text regression task (engagingness evaluator)
+<!-- ### Text regression task (engagingness evaluator)
 
-`python lit.py --config-name rdep_hier_multi`
+`python lit.py --config-name rdep_hier_multi` -->
 
 ## Test or interact
 
-`python lit --config-name [lm | dialogue_multi | rdep_hier_multi] trainer.default_root_dir='your_path_to_saved_checkpoints' stage=[test | interact]`
-
-If you don't need the log in W&B, add `log=False` to the above command.
-
-In the `interact` mode, you can interact with the pretained models.
-With a dialogue model, you can get responses to your input message; with a language model such as GPT-2, you can get continuations to your input text.
+To test or interact with the models trained by yourself:
+`python lit --config-name [lm | dialogue_multi] trainer.default_root_dir='your_path_to_saved_checkpoints' stage=[test | interact]`
 
 <!-- ```
 export DATASET=fed # or daily_dialog_engaging
