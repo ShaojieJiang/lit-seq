@@ -9,25 +9,20 @@ task:
     encoder_no_repeat_ngram_size: 0 # 3 by default
     min_length: 20 # 20 by default
     num_beams: 1 # 10 by default
-    disparate: False # toggle for using the disparate regulariser
+    simctg: False
     padding_mask: True # mask for padding tokens
     identical_mask: False # mask for identical tokens
-    disparate_alpha: 10 # coefficient for similarity loss
     strengthen_position: False # whether to strengthen positifon embedding at each decoder layer
     generate_after_progress: 0 # don't generate before this threshold, to save time
-    sim_threshold: 0.1
-    unlikelihood: False
+    ul_seq: False
     ct_seq: False
     topk_negatives: 0 # topk prediction as negative examples; 0: skipping
-    preced_k_negatives: 0 # -1: use none; 0: use all; k: use preceding k tokens as negatives
-    negative_method: cl2 # cl1, ul
+    preced_m_negatives: 15 # -1: use all; 0: use none; k: use preceding k tokens as negatives
+    negative_method: ct # ul, ul2, nce
     scratch: False
     save_generation_path: null # ${trainer.default_root_dir}/generated.txt
-    clr: False # contrastive learning representation from SimCLR
-    topk_positives: 2
-    neg_hardness: 10
-    ct_window_size: 30
-    # compute_generate_metrics: False
+    clr: False # normalize hidden and embedding representations, i.e., change dot product to cosine sim
+    ct_seq_len: 30
 
 trainer:
   limit_val_batches: 50

@@ -22,7 +22,6 @@ task:
   _target_: lightning_transformers.task.nlp.conversation.ConversationTransformer
   cfg:
     compute_generate_metrics: True
-    pooling_method: cls
     task_name: conversation_ct
     scheduler_monitor: val_loss
     scheduler_mode: min
@@ -39,7 +38,7 @@ trainer:
   max_epochs: 100
   gradient_clip_val: 0.1
   resume_from_checkpoint: ${trainer.default_root_dir}/last.ckpt
-  default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}/${experiment_name}
+  default_root_dir: ${oc.env:HOME}/storage/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}/${experiment_name}
   logger:
     project: ct
 

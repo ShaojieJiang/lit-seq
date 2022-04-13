@@ -83,8 +83,8 @@ class LanguageModelingTransformer(HFTransformer):
             add_dataloader_idx=False,
         )
 
-        if not self.cfg.negative_method.startswith('ul') and self.cfg.preced_k_negatives:
-            wsz = self.cfg.ct_window_size
+        if not self.cfg.negative_method.startswith('ul') and self.cfg.preced_m_negatives:
+            wsz = self.cfg.ct_seq_len
             logits_ct = shift_logits[..., :wsz, :]
             labels_ct = shift_labels[..., :wsz]
             final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, logits_ct, outputs.hidden_states[-1][:, :wsz, :], labels_ct)

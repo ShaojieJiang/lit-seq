@@ -123,15 +123,14 @@ class HFTransformer(TaskTransformer):
     def calc_aux_loss(self, prefix: str, batch: Any, logits, hidden_states, labels):
         aux_loss = 0.0
 
-        if self.cfg.disparate:
+        if self.cfg.simctg:
             mean_sim, sim_loss = calc_vector_similarity(
                 hidden_states,
                 labels,
                 padding_id=self.criterion.ignore_index,
                 padding_mask=self.cfg.padding_mask,
                 identical_mask=self.cfg.identical_mask,
-                disparate=self.cfg.disparate,
-                sim_threshold=self.cfg.sim_threshold,
+                simctg=self.cfg.simctg,
             )
         else:
             with torch.no_grad():
@@ -141,8 +140,7 @@ class HFTransformer(TaskTransformer):
                     padding_id=self.criterion.ignore_index,
                     padding_mask=self.cfg.padding_mask,
                     identical_mask=self.cfg.identical_mask,
-                    disparate=self.cfg.disparate,
-                    sim_threshold=self.cfg.sim_threshold,
+                    simctg=self.cfg.simctg,
                 )
 
         self.log(
@@ -150,10 +148,10 @@ class HFTransformer(TaskTransformer):
             add_dataloader_idx=False,
         )
 
-        if self.cfg.disparate: # report cosine when not using disparate regulariser
-            aux_loss += self.cfg.disparate_alpha * sim_loss
+        if self.cfg.simctg: # simctg loss
+            aux_loss += sim_loss
 
-        if self.cfg.topk_negatives or self.cfg.preced_k_negatives:
+        if self.cfg.topk_negatives or self.cfg.preced_m_negatives:
             if self.cfg.negative_method.startswith('ul'):
                 neg_loss = negative_loss(
                     logits,
@@ -162,18 +160,16 @@ class HFTransformer(TaskTransformer):
                     method=self.cfg.negative_method,
                     pad_id=self.tokenizer.pad_token_id,
                     topk_negatives=self.cfg.topk_negatives,
-                    preced_k_negatives=self.cfg.preced_k_negatives,
+                    preced_m_negatives=self.cfg.preced_m_negatives,
                 )
-            elif self.cfg.negative_method.startswith('cl'):
+            elif self.cfg.negative_method.startswith('ct'):
                 neg_loss = contrastive_loss(
                     logits,
                     labels,
                     orig_pad_id=self.criterion.ignore_index,
                     pad_id=self.tokenizer.pad_token_id,
                     topk_negatives=self.cfg.topk_negatives,
-                    preced_k_negatives=self.cfg.preced_k_negatives,
-                    topk_positives=self.cfg.topk_positives,
-                    neg_hardness=self.cfg.neg_hardness,
+                    preced_m_negatives=self.cfg.preced_m_negatives,
                 )
             elif self.cfg.negative_method == 'nce':
                 neg_loss = nce_loss(
@@ -181,7 +177,7 @@ class HFTransformer(TaskTransformer):
                     labels,
                     orig_pad_id=self.criterion.ignore_index,
                     pad_id=self.tokenizer.pad_token_id,
-                    preced_k_negatives=self.cfg.preced_k_negatives,
+                    preced_m_negatives=self.cfg.preced_m_negatives,
                 )
             self.log(
                 f"{prefix}_neg_loss", neg_loss,
@@ -190,7 +186,7 @@ class HFTransformer(TaskTransformer):
 
             aux_loss += neg_loss # the actual loss to backprop
         
-        if self.cfg.unlikelihood and self.training:
+        if self.cfg.ul_seq and self.training:
             seq_ul = self.compute_seq_ul(batch)
             self.log(
                 f"{prefix}_seq_ul", seq_ul,

@@ -19,38 +19,30 @@ dataset:
     dataset_config_name: wikitext-103-raw-v1
 
 task:
-  # _target_: lightning_transformers.task.nlp.conversation.ConversationTransformer
   cfg:
     compute_generate_metrics: True
-    pooling_method: cls
     task_name: lm_ct
     scheduler_monitor: val_loss
     scheduler_mode: min
     no_repeat_ngram_size: 0 # 3 by default
     encoder_no_repeat_ngram_size: 0 # 3 by default
     val_target_max_length: 150
-    prefix_length: 50
+    prefix_length: 60
     num_beams: 1 # 10 by default
     lm_stride: ${dataset.cfg.stride}
-    disparate: False # toggle for using the disparate regulariser
+    simctg: False
     padding_mask: True # mask for padding tokens
     identical_mask: False # mask for identical tokens
-    disparate_alpha: 10 # coefficient for similarity loss
     strengthen_position: False # whether to strengthen positifon embedding at each decoder layer
     generate_after_progress: 0 # don't generate before this threshold, to save time
-    sim_threshold: 0.1
-    unlikelihood: False
+    ul_seq: False
     ct_seq: False
     topk_negatives: 0 # topk prediction as negative examples; 0: skipping
-    preced_k_negatives: 0 # 0: use none; -1: use all; k: use preceding k tokens as negatives
-    negative_method: cl2 # cl1, ul
+    preced_m_negatives: 50 # -1: use all; 0: use none; k: use preceding k tokens as negatives
+    negative_method: ct # ul, ul2, nce
     scratch: False
     save_generation_path: null # ${trainer.default_root_dir}/generated.txt
-    clr: False # contrastive learning representation from SimCLR
-    topk_positives: 2 # 2 also works
-    neg_hardness: 5
-    ct_window_size: 150
-    # compute_generate_metrics: False
+    ct_seq_len: 150
 
 trainer:
   gpus: 1
@@ -59,7 +51,7 @@ trainer:
   max_epochs: 100
   gradient_clip_val: 0.1
   resume_from_checkpoint: ${trainer.default_root_dir}/last.ckpt
-  default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}/${experiment_name}
+  default_root_dir: ${oc.env:HOME}/storage/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}/${experiment_name}
   logger:
     project: ct
   callbacks:
