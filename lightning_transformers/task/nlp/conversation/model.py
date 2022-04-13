@@ -137,21 +137,35 @@ class ConversationTransformer(HFTransformer):
 
         return conversation.generated_responses[0]
     
+    # def interact(self):
+    #     self.eval()
+    #     conv = ReverseConversation()
+    #     while True:
+    #         user_message = input("Your Message: ")
+    #         conv.add_user_input(user_message)
+    #         self.hf_pipeline(
+    #             conv,
+    #             no_repeat_ngram_size=self.cfg.no_repeat_ngram_size,
+    #             encoder_no_repeat_ngram_size=self.cfg.encoder_no_repeat_ngram_size,
+    #             min_length=self.cfg.min_length,
+    #             num_beams=self.cfg.num_beams,
+    #         )
+            
+    #         print("Blenderbot: ", conv.generated_responses[-1])
+    
     def interact(self):
         self.eval()
-        conv = Conversation()
+        history = []
         while True:
             user_message = input("Your Message: ")
-            conv.add_user_input(user_message)
-            self.hf_pipeline(
-                conv,
-                no_repeat_ngram_size=self.cfg.no_repeat_ngram_size,
-                encoder_no_repeat_ngram_size=self.cfg.encoder_no_repeat_ngram_size,
-                min_length=self.cfg.min_length,
-                num_beams=self.cfg.num_beams,
-            )
+            history.insert(0, user_message)
+            history = history[:self.cfg.history_size]
+            input_ids = self.tokenizer(self.cfg.history_delimiter.join(history), return_tensors='pt')
+            _, generated = self.generate(**input_ids)
+            generated_text = self.tokenizer.decode(generated[0], skip_special_tokens=True)
+            history.insert(0, generated_text)
             
-            print("Blenderbot: ", conv.generated_responses[-1])
+            print("Blenderbot: ", generated_text)
 
     @property
     def hf_pipeline_task(self) -> str:

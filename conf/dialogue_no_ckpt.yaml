@@ -1,6 +1,6 @@
 defaults: # loads default configs
   - dialogue_multi
-  - override dataset: nlp/conversation/multi
+  - override dataset: nlp/conversation/my_daily_dialog
 
 trainer:
   callbacks:

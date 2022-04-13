@@ -30,6 +30,8 @@ task:
     min_length: 20 # 20 by default
     max_length: 30
     num_beams: 10 # 10 by default
+    history_delimiter: ${dataset.cfg.history_delimiter}
+    history_size: ${dataset.cfg.history_size}
 
 trainer:
   gpus: 1
