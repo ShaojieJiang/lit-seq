@@ -130,25 +130,13 @@ class HFTransformer(TaskTransformer):
                 padding_id=self.criterion.ignore_index,
                 padding_mask=self.cfg.padding_mask,
                 identical_mask=self.cfg.identical_mask,
-                simctg=self.cfg.simctg,
             )
-        else:
-            with torch.no_grad():
-                mean_sim, sim_loss = calc_vector_similarity(
-                    hidden_states,
-                    labels,
-                    padding_id=self.criterion.ignore_index,
-                    padding_mask=self.cfg.padding_mask,
-                    identical_mask=self.cfg.identical_mask,
-                    simctg=self.cfg.simctg,
-                )
 
-        self.log(
-            f"{prefix}_similarity", mean_sim,
-            add_dataloader_idx=False,
-        )
+            self.log(
+                f"{prefix}_similarity", mean_sim,
+                add_dataloader_idx=False,
+            )
 
-        if self.cfg.simctg: # simctg loss
             aux_loss += sim_loss
 
         if self.cfg.topk_negatives or self.cfg.preced_m_negatives:
