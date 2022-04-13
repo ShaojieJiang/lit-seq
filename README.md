@@ -18,9 +18,11 @@ Then `pip install .`
 ## Training
 All the data downloading and preprocessing are taken care of automatically.
 All default hyper-parameters for reproducing our results are already in their corresponding `conf/*.yaml`
-configuration files. 
+configuration files.
 Simply run the following commands.
 Checkpoints will be released soon.
+
+> **_NOTE:_**  For preprocessing big datasets such as `Wikitext-103` and `DSTC8-Reddit`, it may take longer, more CPU memory and CPU cores for the first time. But thanks to Hugging Face Datasets, once the datasets are preprocessed, the subsequent runs should take much less memory (25GB or less) and CPU cores (usually two are enough) to run, and should be loaded instantly.
 
 ### Language modeling task
 
