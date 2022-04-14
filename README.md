@@ -26,7 +26,9 @@ Then `pip install .`
 
 The pretrained checkpoints used in paper [1] are now on Hugging Face Hub, so you can easily reproduce the results reported in our paper, or `interact` with our pretained models.
 
-For reproducing the test results, or interacting with the GPT2-small model finetuned on Wikitext-103:
+Here is the [notebook](https://colab.research.google.com/drive/1cbWX7gQfuICS4b1McqOkF2I63kYn5XWL?usp=sharing) to interact with our models on Google Colab.
+
+For reproducing the test results on your local server, or interacting with the GPT2-small model finetuned on Wikitext-103:
 
 `python lit --config-name lm backbone.pretrained_model_name_or_path=NeuralNotwork/gpt2-ct stage=[test | interact]`
 
