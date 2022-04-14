@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import TYPE_CHECKING, Any, List, Optional, Type
+import uuid
 
 import torch
 from hydra.utils import get_class
@@ -137,35 +138,21 @@ class ConversationTransformer(HFTransformer):
 
         return conversation.generated_responses[0]
     
-    # def interact(self):
-    #     self.eval()
-    #     conv = ReverseConversation()
-    #     while True:
-    #         user_message = input("Your Message: ")
-    #         conv.add_user_input(user_message)
-    #         self.hf_pipeline(
-    #             conv,
-    #             no_repeat_ngram_size=self.cfg.no_repeat_ngram_size,
-    #             encoder_no_repeat_ngram_size=self.cfg.encoder_no_repeat_ngram_size,
-    #             min_length=self.cfg.min_length,
-    #             num_beams=self.cfg.num_beams,
-    #         )
-            
-    #         print("Blenderbot: ", conv.generated_responses[-1])
-    
     def interact(self):
         self.eval()
-        history = []
+        conv = ReverseConversationFixed(history_size=self.cfg.history_size)
         while True:
             user_message = input("Your Message: ")
-            history.insert(0, user_message)
-            history = history[:self.cfg.history_size]
-            input_ids = self.tokenizer(self.cfg.history_delimiter.join(history), return_tensors='pt')
-            _, generated = self.generate(**input_ids)
-            generated_text = self.tokenizer.decode(generated[0], skip_special_tokens=True)
-            history.insert(0, generated_text)
+            conv.add_user_input(user_message)
+            self.hf_pipeline(
+                conv,
+                no_repeat_ngram_size=self.cfg.no_repeat_ngram_size,
+                encoder_no_repeat_ngram_size=self.cfg.encoder_no_repeat_ngram_size,
+                min_length=self.cfg.min_length,
+                num_beams=self.cfg.num_beams,
+            )
             
-            print("Bot: ", generated_text)
+            print("Bot: ", conv.generated_responses[-1])
 
     @property
     def hf_pipeline_task(self) -> str:
@@ -196,3 +183,20 @@ class ConversationTransformer(HFTransformer):
         seq_ul = seq_ul.sum()
         
         return seq_ul
+
+
+class ReverseConversationFixed(Conversation):
+    def __init__(
+        self, text: str = None, conversation_id: uuid.UUID = None,
+        past_user_inputs=None, generated_responses=None, history_size=None,
+    ):
+        super().__init__(text, conversation_id, past_user_inputs, generated_responses)
+        self.history_size = history_size
+    
+    def iter_texts(self):
+        texts = list(super().iter_texts())
+        history = texts[::-1]
+        if self.history_size:
+            history = history[:self.history_size]
+        for (is_user, text) in history:
+            yield is_user, text
