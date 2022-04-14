@@ -1,0 +1,28 @@
+defaults: # loads default configs
+  - dialogue
+  - override dataset: nlp/conversation/multi
+
+dataset:
+  cfg:
+    batch_size: 6
+    dataset_components: my_personachat:my_empathetic_dialogues:my_wizard_of_wikipedia:my_blended_skill_talk:my_daily_dialog
+
+task:
+  cfg:
+    task_name: conversation_ct
+
+training:
+  lr: 1e-5
+  run_test_after_fit: False
+
+trainer:
+  max_steps: 50000
+  val_check_interval: 1000
+  limit_val_batches: 50
+  # limit_test_batches: 2
+  logger:
+    project: ct
+  callbacks:
+    checkpoint_callback:
+      save_last: True
+      save_top_k: 1

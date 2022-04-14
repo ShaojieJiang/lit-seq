@@ -5,6 +5,7 @@ dataset:
   _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionMultiDataModule
   cfg:
     hierarchical: True
+    history_size: 3
 
 task:
   _target_: lightning_transformers.task.nlp.text_regression.HierarchicalTextRegressionTransformer

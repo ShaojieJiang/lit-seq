@@ -2,7 +2,7 @@ defaults:
   - callbacks: multi_callbacks
 _target_: pytorch_lightning.Trainer
 logger: True
-default_root_dir: ${oc.env:STORAGE}/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}
+default_root_dir: ${oc.env:HOME}/storage/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}
 gradient_clip_val: 0.0
 process_position: 0
 num_nodes: 1

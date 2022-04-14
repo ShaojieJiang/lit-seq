@@ -1,0 +1,30 @@
+defaults: # loads default configs
+  - blenderbot
+  - override optimizer: adam
+  - override scheduler: constant_schedule_with_warmup
+
+task:
+  cfg:
+    no_repeat_ngram_size: 0 # 3 by default
+    encoder_no_repeat_ngram_size: 0 # 3 by default
+    min_length: 20 # 20 by default
+    num_beams: 1 # 10 by default
+    simctg: False
+    padding_mask: True # mask for padding tokens
+    identical_mask: False # mask for identical tokens
+    generate_after_progress: 0 # don't generate before this threshold, to save time
+    ul_seq: False
+    ct_seq: False
+    topk_negatives: 0 # topk prediction as negative examples; 0: skipping
+    preced_m_negatives: 15 # -1: use all; 0: use none; k: use preceding k tokens as negatives
+    negative_method: ct # ul, ul2, nce
+    scratch: False
+    save_generation_path: null # ${trainer.default_root_dir}/generated.txt
+    ct_seq_len: 30
+
+trainer:
+  limit_val_batches: 50
+  callbacks:
+    checkpoint_callback:
+      save_last: True
+      save_top_k: 1

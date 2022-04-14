@@ -1,0 +1,9 @@
+defaults: # loads default configs
+  - dialogue_multi
+  - override dataset: nlp/conversation/my_daily_dialog
+
+trainer:
+  callbacks:
+    checkpoint_callback:
+      save_last: False
+      save_top_k: 0

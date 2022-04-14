@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from functools import partial
-from typing import Callable, Optional, Union
+from importlib import import_module
+from typing import Callable, Optional
 
-from datasets import Dataset
+from datasets import Dataset, load_dataset
 from pytorch_lightning import _logger as log
-from transformers import PreTrainedTokenizerBase, default_data_collator
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
+from transformers import default_data_collator
 
 from lightning_transformers.core.nlp import HFDataModule
 from lightning_transformers.task.nlp.language_modeling.config import LanguageModelingDataConfig
@@ -37,12 +39,41 @@ class LanguageModelingDataModule(HFDataModule):
     def __init__(self, *args, cfg: LanguageModelingDataConfig = LanguageModelingDataConfig(), **kwargs) -> None:
         super().__init__(*args, cfg=cfg, **kwargs)
 
+    def load_dataset(self) -> Dataset:
+        # Allow custom data files when loading the dataset
+        data_files = {}
+        if self.cfg.train_file is not None:
+            data_files["train"] = self.cfg.train_file
+        if self.cfg.validation_file is not None:
+            data_files["validation"] = self.cfg.validation_file
+        if self.cfg.test_file is not None:
+            data_files["test"] = self.cfg.test_file
+
+        data_files = data_files if data_files else None
+        if self.cfg.dataset_name is not None:
+            # Download and load the Huggingface dataset.
+            dataset_module = import_module(f'..datasets.{self.cfg.dataset_name}', self.__module__)
+            return load_dataset(
+                path=dataset_module.__file__,
+                name=self.cfg.dataset_config_name,
+                cache_dir=self.cfg.cache_dir,
+                data_files=data_files,
+            )
+
+        # Load straight from data files
+        if not data_files:
+            raise MisconfigurationException(
+                "You have not specified a dataset name. A custom train and validation file is required"
+            )
+        extension = self.cfg.train_file.split(".")[-1]
+        return load_dataset(extension, data_files=data_files)
+
     def process_data(self, dataset: Dataset, stage: Optional[str] = None) -> Dataset:
         column_names = dataset["train" if stage == "fit" else "validation"].column_names
         text_column_name = "text" if "text" in column_names else column_names[0]
 
         tokenize_function = partial(self.tokenize_function, tokenizer=self.tokenizer, text_column_name=text_column_name)
-
+            
         dataset = dataset.map(
             tokenize_function,
             batched=True,
@@ -51,7 +82,7 @@ class LanguageModelingDataModule(HFDataModule):
             load_from_cache_file=self.cfg.load_from_cache_file,
         )
 
-        convert_to_features = partial(self.convert_to_features, block_size=self.effective_block_size)
+        convert_to_features = partial(self.convert_to_features, block_size=self.effective_block_size, stride=self.cfg.stride)
 
         dataset = dataset.map(
             convert_to_features,
@@ -85,13 +116,13 @@ class LanguageModelingDataModule(HFDataModule):
     @staticmethod
     def tokenize_function(
         examples,
-        tokenizer: Union[PreTrainedTokenizerBase],
+        tokenizer,
         text_column_name: str = None,
     ):
         return tokenizer(examples[text_column_name])
 
     @staticmethod
-    def convert_to_features(examples, block_size: int, **kwargs):
+    def convert_to_features(examples, block_size: int, stride: int, **kwargs):
         # Concatenate all texts.
         concatenated_examples = {k: sum(examples[k], []) for k in examples.keys()}
         total_length = len(concatenated_examples[list(examples.keys())[0]])
@@ -100,9 +131,12 @@ class LanguageModelingDataModule(HFDataModule):
         total_length = (total_length // block_size) * block_size
         # Split by chunks of max_len.
         result = {
-            k: [t[i : i + block_size] for i in range(0, total_length, block_size)]
+            k: [t[i : i + block_size] for i in range(0, total_length, stride)]
             for k, t in concatenated_examples.items()
         }
+        if len(result['input_ids'][-1]) < block_size:
+            result['input_ids'] = result['input_ids'][:-1]
+            result['attention_mask'] = result['attention_mask'][:-1]
         result["labels"] = result["input_ids"].copy()
         return result
 
