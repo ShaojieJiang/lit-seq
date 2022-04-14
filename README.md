@@ -1,11 +1,12 @@
-This repo is for our paper _Training a Turn-level User Engagingness Predictor for Dialogues with Weak Supervision_
+<!-- This repo is for our paper _Training a Turn-level User Engagingness Predictor for Dialogues with Weak Supervision_ -->
 
-This repo is based on [Lightning Transformers](https://github.com/PyTorchLightning/lightning-transformers).
+This repository is based on [Lightning Transformers](https://github.com/PyTorchLightning/lightning-transformers).
 
 ## Related papers
 
-This repo contains the source code for the following paper:
-CT
+This repository contains the official source code for the following paper:
+
+[1] _A Simple Contrastive Learning Objective for Alleviating Neural Text Degeneration_
 <!-- WESEE -->
 
 ## Changes to the original repo
@@ -23,20 +24,21 @@ Then `pip install .`
 
 ## Run test or interact with our pretrained model
 
-The pretrained checkpoints used in the CT paper are already uploaded to Hugging Face Hub, so you can easily reproduce the results reported in our paper.
+The pretrained checkpoints used in paper [1] are now on Hugging Face Hub, so you can easily reproduce the results reported in our paper, or `interact` with our pretained models.
 
 For reproducing the test results, or interacting with the GPT2-small model finetuned on Wikitext-103:
 
 `python lit --config-name lm backbone.pretrained_model_name_or_path=NeuralNotwork/gpt2-ct stage=[test | interact]`
 
+Interacting with a language model, you can get continuations to your input prefix.
+
 For the BlenderBot dialogue model:
 
 `python lit --config-name dialogue_multi backbone.pretrained_model_name_or_path=NeuralNotwork/blenderbot-400M-ct stage=[test | interact]`
 
-If you don't need the log in W&B, add `log=False` to the above commands.
+Interacting with a dialogue model, you can get responses to your input message.
 
-In the `interact` mode, you can interact with the pretained models.
-With a language model, you can get continuations to your input prefix; with a dialogue model, you can get responses to your input message.
+If you don't need the W&B logging, add `log=False` to the above commands.
 
 ## Training
 
@@ -46,13 +48,13 @@ All default hyper-parameters for reproducing our results are already in their co
 configuration files.
 Simply run the following commands.
 
-> **_NOTE:_**  For preprocessing big datasets such as `Wikitext-103` and `DSTC8-Reddit`, it may take longer, more CPU memory and CPU cores for the first time. But thanks to Hugging Face Datasets, once the datasets are preprocessed, the subsequent runs should take much less memory (25GB or less) and CPU cores (usually two are enough) to run, and should be loaded instantly.
+> **_NOTE:_**  For preprocessing big datasets such as `Wikitext-103` and `DSTC8-Reddit`, it may take longer, more CPU memory and CPU cores for the first time. But thanks to Hugging Face Datasets, once the datasets are preprocessed and cached locally, the subsequent runs should take much less memory (25GB or less) and CPU cores (usually two are enough) to run, and should be loaded instantly.
 
 ### Language modeling task
 
 `python lit.py --config-name lm dataset.cfg.dataset_config_name=wikitext-103-raw-v1 [OPTIONS]`
 
-key options:
+For customising the training, consider the following options:
 | optinal arguments | values | explanation |
 |------|---|-------------|
 | task.cfg.ct_seq_len | Positive integer | Suggested to be 1/4 (rounded) of the cross-entropy sequence length (maximum training length). Default to `150`|
@@ -67,7 +69,7 @@ key options:
 
 `python lit.py --config-name dialogue_multi [OPTIONS]`
 
-key options:
+For customising the training, consider these options:
 | optinal arguments | values | explanation |
 |------|---|-------------|
 | task.cfg.ct_seq_len | Positive integer | Suggested to be 1/4 (rounded) of the cross-entropy sequence length (maximum training length). Default to `30`|
