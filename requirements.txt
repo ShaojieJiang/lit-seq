@@ -1,21 +1,21 @@
-pytorch-lightning>=1.4.0
-torch>=1.6
-numpy
-tqdm
+pytorch-lightning==1.4.9
+torch==1.10.0
+numpy==1.19.5
+tqdm==4.62.2
 
 #metrics
-torchmetrics
+torchmetrics==0.4.1
 
 # extras
-fairscale
+fairscale==0.4.0
 
 # huggingface
-transformers
-datasets
+transformers==4.10.3
+datasets==1.12.1
 
 # hydra
-hydra-core>=1.1.0
+hydra-core==1.1.1
 
 # task-specific
-rouge-score
-sentencepiece
+rouge-score==0.0.4
+sentencepiece==0.1.96
