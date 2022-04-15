@@ -46,7 +46,7 @@ If you don't need the W&B logging, add `log=False` to the above commands.
 
 After installation, you can simply use our CT objective with only severel lines of code, around where you calculate PyTorch's `CrossEntropyLoss`.
 Here is an example:
-```
+```python
 import torch
 
 # Suppose we already have the model output logits and labels:
