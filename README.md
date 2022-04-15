@@ -63,6 +63,9 @@ from lightning_transformers.core.utils import ContrastiveTokenLoss
 ct_criterion = ContrastiveTokenLoss(pad_id=999)
 ct_loss = ct_criterion(logits, labels)
 
+# In our paper [1], we use CE and CT together
+loss = ce_loss + ct_loss
+
 print(ce_loss, ct_loss)
 
 >>> tensor(6.9536) tensor(1.5848)
