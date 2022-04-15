@@ -42,6 +42,32 @@ Interacting with a dialogue model, you can get responses to your input message.
 
 If you don't need the W&B logging, add `log=False` to the above commands.
 
+## Use our CT objective in your work
+
+After installation, you can simply use our CT objective with only severel lines of code, around where you calculate PyTorch's `CrossEntropyLoss`.
+Here is an example:
+```
+import torch
+
+# Suppose we already have the model output logits and labels:
+logits = torch.rand(10, 50, 1000)
+labels = torch.randint(0, 999, (10, 50))
+
+# This is how you normally use cross-entropy:
+from torch.nn import CrossEntropyLoss
+ce_criterion = CrossEntropyLoss()
+ce_loss = ce_criterion(logits.view(-1, 1000), labels.view(-1))
+
+# This is how you can use our contrastive token loss:
+from lightning_transformers.core.utils import ContrastiveTokenLoss
+ct_criterion = ContrastiveTokenLoss(pad_id=999)
+ct_loss = ct_criterion(logits, labels)
+
+print(ce_loss, ct_loss)
+
+>>> tensor(6.9536) tensor(1.5848)
+```
+
 ## Training
 
 You can also reproduce our training using the instructions below.
