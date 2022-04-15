@@ -90,10 +90,6 @@ class LanguageModelingTransformer(HFTransformer):
             final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, logits_ct, outputs.hidden_states[-1][:, :wsz, :], labels_ct)
         else:
             final_loss = loss.mean() + self.calc_aux_loss(prefix, batch, shift_logits, outputs.hidden_states[-1][:, :-1, :], shift_labels)
-        
-        # from lightning_transformers.core.utils import ContrastiveTokenLoss
-        # ct_criterion = ContrastiveTokenLoss(pad_id=self.tokenizer.pad_token_id)
-        # final_loss = loss.mean() + ct_criterion(shift_logits, shift_labels)
 
         non_padding = shift_labels != self.criterion.ignore_index
         
