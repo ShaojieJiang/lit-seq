@@ -49,8 +49,8 @@ If you don't need the W&B logging, add `log=False` to the above commands.
 ## Use our CT objective in your work
 
 You can use our CT objective when **pretraining** or **finetuning** your augoregressive language models.
-With CT, the resulting language models will have significantly less repetitive generations, even with deterministic decoding such as greedy and beam search.
-Using CT loss only takes severel lines of code, around where you calculate PyTorch's `CrossEntropyLoss`.
+With CT, the resulting language models will have significantly less **repetitive** generations, even with deterministic decoding such as greedy and beam search.
+It only takes severel lines of code to use CT loss, around where you calculate PyTorch's `CrossEntropyLoss`.
 Here is an example:
 ```python
 import torch
