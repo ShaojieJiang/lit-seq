@@ -12,6 +12,7 @@ This repository contains the official source code for the following paper:
 
 [1] _A Simple Contrastive Learning Objective for Alleviating Neural Text Degeneration_
 <!-- WESEE -->
+Add citation
 
 ## Changes to the original repo
 Coming soon.
@@ -50,7 +51,7 @@ If you don't need the W&B logging, add `log=False` to the above commands.
 
 You can use our CT objective when **pretraining** or **finetuning** your augoregressive language models.
 With CT, the resulting language models will have significantly less **repetitive** generations, even with deterministic decoding such as greedy and beam search.
-It only takes severel lines of code to use CT loss, around where you calculate PyTorch's `CrossEntropyLoss`.
+It only takes several lines of code to use CT loss, around where you calculate PyTorch's `CrossEntropyLoss`.
 Here is an example:
 ```python
 import torch
@@ -66,7 +67,7 @@ ce_criterion = CrossEntropyLoss()
 ce_loss = ce_criterion(logits.view(-1, 1000), labels.view(-1))
 
 # This is how you can use our contrastive token loss:
-from lightning_transformers.core.utils import ContrastiveTokenLoss
+from ct.ct_loss import ContrastiveTokenLoss
 ct_criterion = ContrastiveTokenLoss(pad_id=999) # we need pad tokens for masking out tokens in a sequence that should not be used as negative tokens
 ct_loss = ct_criterion(logits, labels)
 
