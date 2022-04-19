@@ -464,7 +464,7 @@ def contrastive_token_loss(
     
     assert preced_m_negatives > 0, "preced_m_negatives must be greater than 0 when using CT loss."
     if preced_m_negatives <= 1: # portion of ct_length
-        preced_m_negatives = preced_m_negatives * ct_length
+        preced_m_negatives = round(preced_m_negatives * ct_length)
     else: # exact value
         preced_m_negatives = round(preced_m_negatives)
 
