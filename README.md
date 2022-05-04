@@ -4,7 +4,12 @@ This repository is based on [Lightning Transformers](https://github.com/PyTorchL
 
 # Table of contents
 1. [Installation](#installation-from-source)
+1. [Use CT Loss in your work](#using-our-ct-objective-in-your-work)
 1. [Test or interact with our checkpoints](#run-test-or-interact-with-our-pretrained-model)
+1. [Training by yourself](#training)
+    1. [Language modelling task](#language-modeling-task)
+    1. [Dialogue task](#dialogue-task)
+1. [Test or interact with your trained model](#test-or-interact)
 
 ## Related papers
 
@@ -12,20 +17,29 @@ This repository contains the official source code for the following paper:
 
 [1] _A Simple Contrastive Learning Objective for Alleviating Neural Text Degeneration_
 <!-- WESEE -->
-Add citation
+If you use this work, pleace cite our paper:
+```
+@article{jiang2022contrastive,
+	author = {Shaojie Jiang and Ruqing Zhang and Svitlana Vakulenko and Maarten de Rijke},
+	title = {A Simple Contrastive Learning Objective for Alleviating Neural Text Degeneration},
+	year = {2022}}
+```
 
-## Changes to the original repo
-Coming soon.
-Tested on the following tasks:
-* Language modeling
-* Conversation
-<!-- * Text regression -->
 
+## Installing from source
 
-## Installation from source
+Clone and change your working directory to this repo's root dir
+```bash
+git clone https://github.com/ShaojieJiang/lit-seq.git
+cd lit-seq
+pip install . # Tested with Python >= 3.7.0
+```
 
-Clone and change directory to this repo's root dir.
-Then `pip install .`
+## Using our CT objective in your work
+
+This repo depends on our Python package `ct-loss`, which is a PyTorch loss function for reducing generative repetitions
+of auto-regressive language models.
+Using `ct-loss` in your work is very simple, please take a look at [this repo](https://github.com/ShaojieJiang/CT-Loss).
 
 ## Run test or interact with our pretrained model
 
@@ -46,38 +60,6 @@ For the BlenderBot dialogue model:
 Interacting with a dialogue model, you can get responses to your input message.
 
 If you don't need the W&B logging, add `log=False` to the above commands.
-
-## Use our CT objective in your work
-
-You can use our CT objective when **pretraining** or **finetuning** your augoregressive language models.
-With CT, the resulting language models will have significantly less **repetitive** generations, even with deterministic decoding such as greedy and beam search.
-It only takes several lines of code to use CT loss, around where you calculate PyTorch's `CrossEntropyLoss`.
-Here is an example:
-```python
-import torch
-
-# Suppose we already have the model output logits and labels (sequences of token indices).
-# For example when the batch size is 10, sequence length is 50 and vocabulary size is 1000:
-logits = torch.rand(10, 50, 1000)
-labels = torch.randint(0, 999, (10, 50))
-
-# This is how you normally use cross-entropy for a language model:
-from torch.nn import CrossEntropyLoss
-ce_criterion = CrossEntropyLoss()
-ce_loss = ce_criterion(logits.view(-1, 1000), labels.view(-1))
-
-# This is how you can use our contrastive token loss:
-from ct.ct_loss import ContrastiveTokenLoss
-ct_criterion = ContrastiveTokenLoss(pad_id=999) # we need pad tokens for masking out tokens in a sequence that should not be used as negative tokens
-ct_loss = ct_criterion(logits, labels)
-
-# In our paper [1], we use CE and CT together
-loss = ce_loss + ct_loss
-
-print(ce_loss, ct_loss)
-
->>> tensor(6.9536) tensor(1.5848)
-```
 
 ## Training
 
@@ -138,3 +120,10 @@ python lit.py --config-name rdep_hier dataset.cfg.history_size=3 trainer.default
 ## License
 
 Please observe the Apache 2.0 license that is listed in this repository.
+
+## Changes to the original repo
+Coming soon.
+Tested on the following tasks:
+* Language modeling
+* Conversation
+<!-- * Text regression -->
