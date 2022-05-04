@@ -3,7 +3,7 @@
 This repository is based on [Lightning Transformers](https://github.com/PyTorchLightning/lightning-transformers).
 
 # Table of contents
-1. [Installation](#installation-from-source)
+1. [Installation](#installing-from-source)
 1. [Use CT Loss in your work](#using-our-ct-objective-in-your-work)
 1. [Test or interact with our checkpoints](#run-test-or-interact-with-our-pretrained-model)
 1. [Training by yourself](#training)
