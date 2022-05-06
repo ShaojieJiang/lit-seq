@@ -20,6 +20,7 @@ from typing import Mapping, Optional, Sequence, Type, Union
 
 import torch
 import torch.nn.functional as F
+from ct.functional.ct_loss import contrastive_token_loss, preced_negatives
 from datasets.arrow_dataset import Dataset
 from datasets.builder import DatasetBuilder
 from datasets.dataset_dict import DatasetDict, IterableDatasetDict
@@ -371,102 +372,6 @@ def calc_vector_similarity(
     return cos_sim, simctg
 
 
-def preced_negatives(
-    labels=None,
-    preced_m_negatives=0,
-    pad_id=0,
-):
-    preced_tokens = None
-    if preced_m_negatives: # use previous k tokens as negatives
-        preced_tokens = labels.unsqueeze(1).expand(labels.size(0), labels.size(1), labels.size(1))
-        mask = torch.ones_like(preced_tokens).bool()
-        mask = torch.ones_like(preced_tokens).tril(-1).bool()
-        if preced_m_negatives > 0:
-            mask = mask.triu(-preced_m_negatives)
-        preced_tokens = preced_tokens.masked_fill(~mask, pad_id)
-
-    if preced_tokens is not None:
-        preced_tokens = preced_tokens.masked_fill(preced_tokens == labels.unsqueeze(-1), pad_id) # exclude same label tokens as negatives
-
-    return preced_tokens
-
-
-class ContrastiveTokenLoss(torch.nn.Module):
-    def __init__(
-        self,
-        ignore_index=-100,
-        pad_id=0,
-        preced_m_negatives=0,
-        infer_length=True,
-        ct_length_portion=0.25,
-        negative_token_portion=0.125,
-    ):
-        super().__init__()
-        self.ignore_index = ignore_index
-        self.pad_id = pad_id
-        self.preced_m_negatives = preced_m_negatives
-        self.infer_length = infer_length
-        self.ct_length_portion = ct_length_portion
-        self.negative_token_portion = negative_token_portion
-    
-    def forward(self, input: Tensor, target: Tensor) -> Tensor:
-        return contrastive_token_loss(
-            input, target, self.ignore_index,
-            self.pad_id, self.preced_m_negatives,
-            self.infer_length, self.ct_length_portion,
-            self.negative_token_portion,
-        )
-
-
-def contrastive_token_loss(
-    input: Tensor,
-    target: Tensor,
-    ignore_index: int = -100,
-    pad_id: int = 0,
-    preced_m_negatives: int = 0,
-    infer_length: bool = True,
-    ct_length_portion: float = 0.25,
-    negative_token_portion: float = 0.125,
-):
-    if not preced_m_negatives and infer_length:
-        ct_length = round(input.size(1) * ct_length_portion)
-        preced_m_negatives = round(input.size(1) * negative_token_portion)
-
-        input = input[..., :ct_length, :]
-        target = target[..., :ct_length]
-
-    if ignore_index != pad_id:
-        target_with_pad = target.masked_fill(target.eq(ignore_index), pad_id)
-    else:
-        target_with_pad = target
-        
-    non_padding = target_with_pad != pad_id
-
-    preced_tokens = preced_negatives(target_with_pad, preced_m_negatives, pad_id)
-    # if preced_m_negatives:
-    positive_scores = input.gather(2, target_with_pad.unsqueeze(-1)) # label scores
-    negative_scores = input.gather(2, preced_tokens)
-    neg_minus_pos = negative_scores - positive_scores
-    exp = neg_minus_pos.exp()
-
-    pad_mask = preced_tokens.ne(pad_id).int()
-    # ours
-    sum_exp = (exp * pad_mask).sum(dim=-1) # don't use pad tokens as negatives
-    losses = (1 + sum_exp).log() * non_padding.int()
-
-    # # N-pair
-    # sum_exp = (exp * pad_mask.unsqueeze(-1)).sum(dim=-2) # don't use pad tokens as negatives
-    # losses = (1 + sum_exp).log().mean(dim=-1) * non_padding.int()
-
-    # # N-pair-ovo
-    # sum_exp = (exp * pad_mask.unsqueeze(-1)) # don't use pad tokens as negatives
-    # losses = (1 + sum_exp).log().sum(dim=-2).mean(dim=-1) * non_padding.int()
-
-    ct_loss = losses.sum() / non_padding.int().sum()
-    
-    return ct_loss
-
-
 def contrastive_loss(
     logits, target_inds, orig_pad_id=0,
     pad_id=0, preced_m_negatives=0,
@@ -486,9 +391,17 @@ def contrastive_loss(
         positive_scores = logits.gather(2, labels.unsqueeze(-1))
         neg_minus_pos = neg_scores - positive_scores
         exp = neg_minus_pos.exp()
-        sum_exp = (exp * pad_mask).sum(dim=-1) # don't use pad tokens as negatives
 
+        sum_exp = (exp * pad_mask).sum(dim=-1) # don't use pad tokens as negatives
         losses = (1 + sum_exp).log() * non_padding.int()
+
+        # # N-pair
+        # sum_exp = (exp * pad_mask.unsqueeze(-1)).sum(dim=-2) # don't use pad tokens as negatives
+        # losses = (1 + sum_exp).log().mean(dim=-1) * non_padding.int()
+
+        # # N-pair-ovo
+        # sum_exp = (exp * pad_mask.unsqueeze(-1)) # don't use pad tokens as negatives
+
         pred_loss = losses.sum() / non_padding.int().sum()
 
     return repeat_loss + pred_loss
