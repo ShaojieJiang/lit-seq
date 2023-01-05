@@ -4,6 +4,7 @@ This repository is based on [Lightning Transformers](https://github.com/PyTorchL
 
 # Table of contents
 1. [Installation](#installing-from-source)
+1. [Related papers](#related-papers)
 1. [Use CT Loss in your work](#using-our-ct-objective-in-your-work)
 1. [Test or interact with our checkpoints](#run-test-or-interact-with-our-pretrained-model)
 1. [Training by yourself](#training)
@@ -13,7 +14,7 @@ This repository is based on [Lightning Transformers](https://github.com/PyTorchL
 
 ## Related papers
 
-This repository contains the official source code for the following paper:
+This repository contains the official source code for the following papers:
 
 [1] _A Simple Contrastive Learning Objective for Alleviating Neural Text Degeneration_
 <!-- WESEE -->
@@ -29,6 +30,21 @@ If you use this work, please cite our paper:
 }
 ```
 
+[2] _Weakly Supervised Turn-level Engagingness Evaluator for Dialogues_
+```
+@inproceedings{jiang2023weakly,
+  author = {Jiang, Shaojie and Vakulenko, Svitlana and de Rijke, Maarten},
+  title = {Weakly Supervised Turn-level Engagingness Evaluator for Dialogues},
+  year = {2023},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3576840.3578319},
+  doi = {10.1145/3576840.3578319},
+  keywords = {Conversation analysis, engagingness, user experience},
+  location = {Austin, TX, USA},
+  series = {CHIIR '23}
+}
+```
 
 ## Installing from source
 
@@ -105,9 +121,11 @@ For customising the training, consider these options:
 | training.lr | Float | Learning rate. Default to `1e-5` |
 | trainer.default_root_dir | Path to your checkpoint location | Default to `${HOME}/storage/trained/lit/${task.cfg.task_name}/${backbone.pretrained_model_name_or_path}_${dataset.cfg.pretrained_dataset_name}` |
 
-<!-- ### Text regression task (engagingness evaluator)
+### Evaluation task
 
-`python lit.py --config-name rdep_hier_multi` -->
+To reproduce the training in work [2]:
+
+`python lit.py --config-name rdep_hier_multi dataset.cfg.history_size=3 trainer.default_root_dir='your_path_to_save_checkpoints`
 
 ## Test or interact
 
@@ -115,11 +133,12 @@ To test or interact with the models trained by yourself:
 
 `python lit --config-name [lm | dialogue_multi] trainer.default_root_dir='your_path_to_saved_checkpoints' stage=[test | interact]`
 
-<!-- ```
+To test the trained evaluator on the FED dataset:
+```bash
 export DATASET=fed # or daily_dialog_engaging
 
 python lit.py --config-name rdep_hier dataset.cfg.history_size=3 trainer.default_root_dir='your_path_to_save_checkpoints' stage=test log=False dataset=nlp/text_regression/${DATASET}
-``` -->
+```
 
 ## License
 
